@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "app": "tiktok",
+  "displayName": "TikTok",
+  "packages": ["com.zhiliaoapp.musically"],
+  "messagesTabLabels": ["Inbox"],
+  "verified": false,
+  "surfaces": [
+    {
+      "id": "dm_inbox",
+      "label": "Inbox",
+      "kind": "protected",
+      "defaultPolicy": "ALLOW",
+      "enforce": true,
+      "match": { "selectedTab": ["Inbox"] }
+    },
+    {
+      "id": "dm_thread",
+      "label": "Thread",
+      "kind": "protected",
+      "defaultPolicy": "ALLOW",
+      "enforce": true,
+      "match": { "hasLabel": ["quiet.synthetic.tiktok.dm_thread"] },
+      "notes": "Sentinel until snapshot confirms thread markers"
+    },
+    {
+      "id": "for_you",
+      "label": "For You",
+      "kind": "feed",
+      "defaultPolicy": "BLOCK",
+      "enforce": true,
+      "match": { "selectedTab": ["For You"] }
+    },
+    {
+      "id": "following",
+      "label": "Following",
+      "kind": "feed",
+      "defaultPolicy": "BLOCK",
+      "enforce": true,
+      "match": { "selectedTab": ["Following"] }
+    },
+    {
+      "id": "discover",
+      "label": "Discover",
+      "kind": "feed",
+      "defaultPolicy": "GATE",
+      "enforce": false,
+      "match": { "hasLabel": ["quiet.synthetic.tiktok.discover"] }
+    },
+    {
+      "id": "dm_shared_video",
+      "label": "Friends' reels",
+      "kind": "shared_media",
+      "defaultPolicy": "BLOCK",
+      "enforce": false,
+      "match": { "hasLabel": ["quiet.synthetic.tiktok.dm_shared_video"] }
+    },
+    {
+      "id": "profile",
+      "label": "Profile",
+      "kind": "other",
+      "defaultPolicy": "ALLOW",
+      "enforce": false,
+      "match": { "hasLabel": ["quiet.synthetic.tiktok.profile"] }
+    }
+  ]
+}
