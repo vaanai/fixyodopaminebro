@@ -18,4 +18,6 @@
 
 **Enforcement wiring:** Gate hold → `grantGatePass` (DataStore + `PolicySnapshotHolder`); breaks from sheet + Today → `startBreak`/`endBreak`; redirect Messages click uses confirming-walk root (`clickMessagesOnHeldRoot`); `syncMemoryFromHolder` preserves passes on policy sync.
 
+**UI layout:** Today/Apps/Library/onboarding aligned to `docs/ui-direction.md` (top bars, secondary stats, app cards, honest preset copy, library chips/dots, step indicator). Emulator smoke screenshots in project `media/`.
+
 **Emulator smoke:** Not run — no system image installed in this VM (unchanged).

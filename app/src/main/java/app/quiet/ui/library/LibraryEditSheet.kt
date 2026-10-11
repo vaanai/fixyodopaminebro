@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import app.quiet.data.db.LibraryItemEntity
 import app.quiet.ui.components.FilterChip
 import app.quiet.ui.components.QuietPrimaryButton
+import app.quiet.ui.components.RatingDotsRow
 import app.quiet.ui.components.QuietTextButton
 import app.quiet.ui.components.QuietTextField
 import app.quiet.ui.theme.QuietThemeAccessor
@@ -68,15 +69,7 @@ fun LibraryEditSheet(
                 placeholder = "S2 · E4, or p. 120",
             )
             Text(text = "Rating", style = type.label, color = colors.textSecondary, modifier = Modifier.padding(top = spacing.space4))
-            Row {
-                (1..5).forEach { star ->
-                    FilterChip(
-                        text = "★",
-                        selected = rating == star,
-                        onClick = { rating = if (rating == star) 0 else star },
-                    )
-                }
-            }
+            RatingDotsRow(rating = rating, onRatingChange = { rating = it })
             QuietTextField(label = "Notes", value = notes, onValueChange = { notes = it }, singleLine = false)
             QuietPrimaryButton(
                 text = "Save",

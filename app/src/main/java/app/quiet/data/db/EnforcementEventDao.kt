@@ -15,6 +15,11 @@ interface EnforcementEventDao {
     @Query("SELECT COUNT(*) FROM enforcement_events WHERE timestamp >= :startOfDay")
     suspend fun countSince(startOfDay: Long): Int
 
+    @Query(
+        "SELECT COUNT(*) FROM enforcement_events WHERE timestamp >= :startOfDay AND action = 'GATE_CONFIRMED'",
+    )
+    suspend fun countGateConfirmedSince(startOfDay: Long): Int
+
     @Query("DELETE FROM enforcement_events WHERE timestamp < :cutoff")
     suspend fun deleteOlderThan(cutoff: Long): Int
 

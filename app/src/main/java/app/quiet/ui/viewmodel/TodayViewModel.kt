@@ -6,7 +6,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.quiet.QuietApplication
 import app.quiet.data.policy.EnforcementStateRepository
-import app.quiet.data.prefs.SettingsSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,15 +14,20 @@ import quiet.core.QuietTiming
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 data class TodayUiState(
     val blockedToday: Int = 0,
     val presetLabel: String = "Balanced",
     val quietHoursOn: Boolean = false,
+    val gatedMinutes: String = "0 min",
     val breaksLeft: String = "0 / 0",
+    val breaksRemaining: Int = 0,
     val showHealthBanner: Boolean = true,
     val recent: List<String> = emptyList(),
     val breakActive: Boolean = false,
+    val breakUntilLabel: String? = null,
 )
 
 class TodayViewModel(app: Application) : AndroidViewModel(app) {
@@ -43,17 +47,27 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         } ?: true
         val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val blocked = quietApp.eventRepository.countBlockedToday(startOfDay)
+        val gatedTotal = quietApp.eventRepository.gatedMinutesToday(startOfDay, prefs.gateMinutes)
         val recent = quietApp.eventRepository.recent(5).map {
             "${it.appId} · ${it.surfaceId} · ${it.action}"
+        }
+        val now = System.currentTimeMillis()
+        val breakActive = prefs.breakUntilEpochMs?.let { it > now } == true
+        val breakUntilLabel = prefs.breakUntilEpochMs?.takeIf { it > now }?.let { until ->
+            DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+                .format(Instant.ofEpochMilli(until).atZone(ZoneId.systemDefault()))
         }
         _state.value = TodayUiState(
             blockedToday = blocked,
             presetLabel = prefs.presetId.replaceFirstChar { it.uppercase() },
             quietHoursOn = prefs.quietHoursEnabled,
+            gatedMinutes = "$gatedTotal min",
             breaksLeft = "${prefs.breaksRemainingToday} / ${prefs.breaksPerDay}",
+            breaksRemaining = prefs.breaksRemainingToday,
             showHealthBanner = !serviceOn || stale || prefs.settingsLoadFailed,
             recent = recent,
-            breakActive = prefs.breakUntilEpochMs?.let { it > System.currentTimeMillis() } == true,
+            breakActive = breakActive,
+            breakUntilLabel = breakUntilLabel,
         )
     }
 

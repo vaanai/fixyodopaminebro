@@ -3,6 +3,8 @@ package app.quiet.ui.screens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -14,8 +16,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import app.quiet.ui.components.HealthBanner
 import app.quiet.ui.components.HeroStat
-import app.quiet.ui.components.QuietOutlineButton
 import app.quiet.ui.components.QuietPrimaryButton
+import app.quiet.ui.components.QuietTextButton
+import app.quiet.ui.components.QuietTopBar
+import app.quiet.ui.components.SecondaryStatPair
 import app.quiet.ui.theme.QuietThemeAccessor
 import app.quiet.ui.viewmodel.TodayViewModel
 
@@ -28,12 +32,17 @@ fun TodayScreen(vm: TodayViewModel, onSettings: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(spacing.space5),
     ) {
-        Text(text = "Today", style = type.headline, color = colors.textPrimary)
-        IconButton(onClick = onSettings, modifier = Modifier) {
-            Icon(Icons.Outlined.Settings, contentDescription = "Settings")
-        }
+        QuietTopBar(
+            title = "Today",
+            trailing = {
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "Settings")
+                }
+            },
+        )
         if (state.showHealthBanner) {
             HealthBanner(
                 message = "Quiet isn't running, so nothing is paused.",
@@ -46,31 +55,53 @@ fun TodayScreen(vm: TodayViewModel, onSettings: () -> Unit) {
             style = type.label,
             color = colors.textSecondary,
         )
-        Text(
-            text = "Breaks left ${state.breaksLeft}",
-            style = type.body,
-            color = colors.textSecondary,
-            modifier = Modifier.padding(top = spacing.space2),
+        SecondaryStatPair(
+            leftValue = state.gatedMinutes,
+            leftLabel = "gated",
+            rightValue = state.breaksLeft,
+            rightLabel = "breaks left",
         )
-        if (state.breakActive) {
-            QuietPrimaryButton(
-                text = "End break",
-                onClick = { vm.endBreak() },
-                modifier = Modifier.padding(top = spacing.space4),
-            )
-        } else {
-            QuietOutlineButton(
-                text = "Take a 5-minute break",
-                onClick = { vm.startBreak() },
-                modifier = Modifier.padding(top = spacing.space4),
-            )
+        when {
+            state.breakActive && state.breakUntilLabel != null -> {
+                Text(
+                    text = "Break until ${state.breakUntilLabel}",
+                    style = type.title,
+                    color = colors.textPrimary,
+                    modifier = Modifier.padding(top = spacing.space6),
+                )
+                QuietTextButton(
+                    text = "End break",
+                    onClick = { vm.endBreak() },
+                    modifier = Modifier.padding(top = spacing.space2),
+                )
+            }
+            state.breaksRemaining > 0 -> {
+                QuietPrimaryButton(
+                    text = "Take a 5-minute break",
+                    onClick = { vm.startBreak() },
+                    modifier = Modifier.padding(top = spacing.space6),
+                )
+            }
+            else -> {
+                QuietPrimaryButton(
+                    text = "No breaks left today",
+                    onClick = {},
+                    enabled = false,
+                    modifier = Modifier.padding(top = spacing.space6),
+                )
+            }
         }
+        Text(
+            text = "Recent",
+            style = type.label,
+            color = colors.textSecondary,
+            modifier = Modifier.padding(top = spacing.space8, bottom = spacing.space2),
+        )
         if (state.recent.isEmpty()) {
             Text(
                 text = "Nothing blocked yet today.",
                 style = type.title,
                 color = colors.textPrimary,
-                modifier = Modifier.padding(top = spacing.space8),
             )
         } else {
             state.recent.forEach { line ->

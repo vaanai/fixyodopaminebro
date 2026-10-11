@@ -9,29 +9,21 @@ object AppSummaryBuilder {
     fun build(rules: AppRules, snapshot: SettingsSnapshot): String {
         val policies = parsePolicies(snapshot.surfacePoliciesJson)
         val friends = parsePolicies(snapshot.friendsReelsJson)
-        val parts = rules.surfaces
+        val feedParts = rules.surfaces
             .filter { it.kind == SurfaceKind.feed && it.enforce }
             .map { surface ->
                 val policy = friends[surface.fullId] ?: policies[surface.fullId] ?: surface.defaultPolicy
-                "${surface.label} ${policyVerb(policy)}"
+                when (policy) {
+                    Policy.BLOCK -> "${surface.label} blocked"
+                    Policy.GATE -> "${surface.label} gated"
+                    Policy.ALLOW, Policy.OPEN_ONLY -> "${surface.label} open"
+                }
             }
-        val unenforced = rules.surfaces.any { !it.enforce && (it.kind == SurfaceKind.feed || it.kind == SurfaceKind.shared_media) }
-        val tail = if (unenforced) "Some surfaces not detected yet" else null
-        return (parts + listOfNotNull(tail)).joinToString(" · ").ifBlank { "Some surfaces not detected yet" }
-    }
-
-    fun friendsLine(surfaceId: String, snapshot: SettingsSnapshot): String {
-        val policy = parsePolicies(snapshot.friendsReelsJson)[surfaceId] ?: Policy.BLOCK
-        return when (policy) {
-            Policy.OPEN_ONLY, Policy.ALLOW -> "Friends' reels open"
-            else -> "Friends' reels blocked"
+        val hasUndetected = rules.surfaces.any {
+            (it.kind == SurfaceKind.feed || it.kind == SurfaceKind.shared_media) && !it.enforce
         }
-    }
-
-    private fun policyVerb(policy: Policy): String = when (policy) {
-        Policy.BLOCK -> "blocked"
-        Policy.GATE -> "gated"
-        Policy.ALLOW, Policy.OPEN_ONLY -> "open"
+        val tail = if (hasUndetected) "Other surfaces not detected yet" else null
+        return (feedParts + listOfNotNull(tail)).joinToString(" · ").ifBlank { "Other surfaces not detected yet" }
     }
 
     private fun parsePolicies(json: String): Map<String, Policy> {

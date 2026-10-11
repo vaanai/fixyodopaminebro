@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.quiet.ui.theme.QuietThemeAccessor
+import app.quiet.ui.theme.quietPrimaryButtonGlow
 
 @Composable
 fun QuietPrimaryButton(
@@ -29,7 +30,8 @@ fun QuietPrimaryButton(
         enabled = enabled,
         modifier = modifier
             .fillMaxWidth()
-            .height(spacing.buttonHeight),
+            .height(spacing.buttonHeight)
+            .quietPrimaryButtonGlow(enabled = enabled, cornerRadius = radius.radiusM),
         shape = RoundedCornerShape(radius.radiusM),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (enabled) colors.accent else colors.surfaceRaised,

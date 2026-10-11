@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import app.quiet.ui.theme.QuietThemeAccessor
+import app.quiet.ui.theme.heroNumberTextStyle
 
 @Composable
 fun HealthBanner(message: String, onOpenSettings: () -> Unit) {
@@ -34,7 +35,7 @@ fun HeroStat(value: String, label: String) {
     val spacing = QuietThemeAccessor.spacing
     val type = QuietThemeAccessor.typography
     Column(modifier = Modifier.padding(vertical = spacing.space4)) {
-        Text(text = value, style = type.display, color = colors.accent)
+        Text(text = value, style = heroNumberTextStyle(type.display), color = colors.accent)
         Text(text = label, style = type.label, color = colors.textSecondary)
     }
 }

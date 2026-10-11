@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.quiet.QuietApplication
+import app.quiet.ui.copy.QuietCopy
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.CreationExtras
@@ -60,7 +61,7 @@ class AppDetailViewModel(app: Application, private val appId: String) : AndroidV
                 friendsSurface = friends?.let {
                     val policy = repo.policyForSurface(snap, it.fullId, it.defaultPolicy)
                     val mapped = if (policy == Policy.OPEN_ONLY) Policy.ALLOW else policy
-                    SurfaceRowState(it, mapped, "Open-only plays the reel you tap.")
+                    SurfaceRowState(it, mapped, QuietCopy.FRIENDS_REELS_SUBLABEL)
                 },
             )
         }

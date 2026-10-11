@@ -27,6 +27,10 @@ class EventRepository(private val dao: EnforcementEventDao) {
         dao.countSince(startOfDay)
     }
 
+    suspend fun gatedMinutesToday(startOfDay: Long, gateMinutes: Int) = withContext(Dispatchers.IO) {
+        dao.countGateConfirmedSince(startOfDay) * gateMinutes
+    }
+
     suspend fun pruneOlderThan(cutoff: Long) = withContext(Dispatchers.IO) {
         dao.deleteOlderThan(cutoff)
     }
