@@ -2,6 +2,9 @@ package app.quiet.ui.viewmodel
 
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,14 +19,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
+import kotlin.math.min
 
 data class SettingsUiState(
+    val quietHoursEnabled: Boolean = false,
+    val quietHoursStartLabel: String = "22:00",
+    val quietHoursEndLabel: String = "07:00",
+    val breaksPerDay: Int = 3,
+    val gateMinutes: Int = 10,
+    val accessibilityOn: Boolean = false,
+    val batteryStatus: String = "Optimized",
     val unknownCount: Int = 0,
     val lastActive: String = "Not running",
     val unverifiedWarning: String = "Unverified rules for Instagram.\nUnverified rules for TikTok.",
     val captureCountdown: Int? = null,
     val captureMessage: String? = null,
-    val exportLogReady: String? = null,
 )
 
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
@@ -42,13 +52,81 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it))
             } ?: "Not running"
             _state.value = _state.value.copy(
+                quietHoursEnabled = snap.quietHoursEnabled,
+                quietHoursStartLabel = formatMinutes(snap.quietHoursStartMinutes),
+                quietHoursEndLabel = formatMinutes(snap.quietHoursEndMinutes),
+                breaksPerDay = snap.breaksPerDay,
+                gateMinutes = snap.gateMinutes,
+                accessibilityOn = isAccessibilityEnabled(),
+                batteryStatus = batteryLabel(),
                 unknownCount = snap.unknownSurfaceCount,
                 lastActive = last,
             )
         }
     }
 
+    fun setQuietHoursEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            quietApp.policyRepository.patchSettings { it.copy(quietHoursEnabled = enabled) }
+            reload()
+        }
+    }
+
+    fun setQuietHoursStart(minutes: Int) {
+        viewModelScope.launch {
+            quietApp.policyRepository.patchSettings { it.copy(quietHoursStartMinutes = minutes) }
+            reload()
+        }
+    }
+
+    fun setQuietHoursEnd(minutes: Int) {
+        viewModelScope.launch {
+            quietApp.policyRepository.patchSettings { it.copy(quietHoursEndMinutes = minutes) }
+            reload()
+        }
+    }
+
+    fun setBreaksPerDay(count: Int) {
+        viewModelScope.launch {
+            quietApp.policyRepository.patchSettings { snap ->
+                val clamped = count.coerceIn(0, 5)
+                snap.copy(
+                    breaksPerDay = clamped,
+                    breaksRemainingToday = min(snap.breaksRemainingToday, clamped),
+                )
+            }
+            reload()
+        }
+    }
+
+    fun setGateMinutes(minutes: Int) {
+        viewModelScope.launch {
+            quietApp.policyRepository.patchSettings { it.copy(gateMinutes = minutes) }
+            reload()
+        }
+    }
+
+    fun openAccessibilitySettings() {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        getApplication<Application>().startActivity(intent)
+    }
+
+    fun openBatterySettings() {
+        val pkg = getApplication<Application>().packageName
+        val pm = getApplication<Application>().getSystemService(PowerManager::class.java)
+        val intent = if (pm?.isIgnoringBatteryOptimizations(pkg) == true) {
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        } else {
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$pkg")
+            }
+        }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        getApplication<Application>().startActivity(intent)
+    }
+
     suspend fun exportLogJson(): String = quietApp.eventRepository.exportJson()
+
+    suspend fun exportLibraryJson(): String = quietApp.libraryRepository.exportJson()
 
     fun startCapture() {
         viewModelScope.launch {
@@ -100,5 +178,29 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 .deleteAllData()
             reload()
         }
+    }
+
+    private fun isAccessibilityEnabled(): Boolean {
+        val enabled = Settings.Secure.getString(
+            getApplication<Application>().contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ) ?: return false
+        return enabled.contains("app.quiet")
+    }
+
+    private fun batteryLabel(): String {
+        val pm = getApplication<Application>().getSystemService(PowerManager::class.java)
+        val pkg = getApplication<Application>().packageName
+        return if (pm?.isIgnoringBatteryOptimizations(pkg) == true) "Unrestricted" else "Optimized"
+    }
+
+    companion object {
+        fun formatMinutes(minutes: Int): String {
+            val h = (minutes / 60) % 24
+            val m = minutes % 60
+            return "%02d:%02d".format(h, m)
+        }
+
+        fun parseTimeToMinutes(hour: Int, minute: Int): Int = hour * 60 + minute
     }
 }

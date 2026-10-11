@@ -39,12 +39,12 @@ fun AppCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 72.dp)
+            .heightIn(min = 80.dp)
             .border(radius.borderWidth, colors.border, RoundedCornerShape(radius.radiusL))
             .clickable(onClick = onClick)
             .padding(spacing.space4)
             .semantics { contentDescription = "$name. $summary" },
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         Box(
             modifier = Modifier
@@ -65,7 +65,7 @@ fun AppCard(
                 text = summary,
                 style = type.label,
                 color = colors.textSecondary,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -73,7 +73,9 @@ fun AppCard(
             imageVector = Icons.Outlined.KeyboardArrowRight,
             contentDescription = null,
             tint = colors.textTertiary,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier
+                .size(20.dp)
+                .padding(top = spacing.space1),
         )
     }
 }

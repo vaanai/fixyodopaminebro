@@ -75,7 +75,7 @@ fun RatingDotsDisplay(rating: Int, modifier: Modifier = Modifier) {
                         if (filled) {
                             Modifier.background(colors.accent, CircleShape)
                         } else {
-                            Modifier.border(1.dp, colors.border, CircleShape)
+                            Modifier.background(colors.textTertiary, CircleShape)
                         },
                     ),
             )

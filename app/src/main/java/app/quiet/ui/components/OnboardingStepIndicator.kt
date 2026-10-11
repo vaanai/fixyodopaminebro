@@ -2,6 +2,7 @@ package app.quiet.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,21 +17,23 @@ fun OnboardingStepIndicator(currentStep: Int, totalSteps: Int = 4) {
     val colors = QuietThemeAccessor.colors
     val radius = QuietThemeAccessor.radius
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         repeat(totalSteps) { index ->
             val step = index + 1
             val filled = step <= currentStep
-            Row(
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(2.dp)
+                    .height(4.dp)
                     .background(
                         if (filled) colors.accent else colors.border,
                         RoundedCornerShape(radius.radiusPill),
                     ),
-            ) {}
+            )
         }
     }
 }

@@ -57,6 +57,12 @@ class PolicyRepository(
         )
     }
 
+    suspend fun patchSettings(transform: (SettingsSnapshot) -> SettingsSnapshot) = withContext(Dispatchers.IO) {
+        val current = preferences.readSnapshot()
+        preferences.applySnapshot(transform(current))
+        PolicySnapshotSync.refresh(preferences)
+    }
+
     suspend fun seedBalancedIfNeeded() {
         val snap = preferences.readSnapshot()
         if (snap.surfacePoliciesJson == "{}" || snap.settingsLoadFailed) {

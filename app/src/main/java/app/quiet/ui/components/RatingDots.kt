@@ -34,7 +34,7 @@ fun RatingDotsRow(rating: Int, onRatingChange: (Int) -> Unit) {
                             if (filled) {
                                 Modifier.background(colors.accent, CircleShape)
                             } else {
-                                Modifier.border(1.dp, colors.border, CircleShape)
+                                Modifier.background(colors.textTertiary, CircleShape)
                             },
                         ),
                 )
