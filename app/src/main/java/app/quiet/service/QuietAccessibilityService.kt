@@ -5,13 +5,14 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import app.quiet.QuietApplication
 import app.quiet.data.policy.PolicySnapshotHolder
+import app.quiet.snapshot.SnapshotCapture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import quiet.core.QuietTiming
-import quiet.core.classify.SurfaceClassifier
 import quiet.core.rules.RuleParser
 import quiet.core.walk.TreeWalker
 import java.util.concurrent.atomic.AtomicBoolean
@@ -19,15 +20,103 @@ import java.util.concurrent.atomic.AtomicBoolean
 class QuietAccessibilityService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var orchestrator: ServiceOrchestrator
+    private lateinit var engine: EnforcementEngine
     private lateinit var overlay: OverlayController
     private val heartbeatRunning = AtomicBoolean(false)
+    private var sheetTimeoutJob: Job? = null
+    private var debounceJob: Job? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         val ig = RuleParser.parseResource(readRules("rules/instagram.json"), "instagram.json").first!!
         val tt = RuleParser.parseResource(readRules("rules/tiktok.json"), "tiktok.json").first!!
         orchestrator = ServiceOrchestrator(ig, tt) { System.currentTimeMillis() }
         overlay = OverlayController(this)
+        engine = EnforcementEngine(
+            orchestrator,
+            clock = { System.currentTimeMillis() },
+            callbacks = EngineCallbacks(
+                walk = { packageName -> walkTargetWindow(packageName) },
+                clickMessages = { _, rules ->
+                    val root = findTargetRoot(rules.packages.first()) ?: return@EngineCallbacks false
+                    try {
+                        MessageClickResolver.performClick(root, rules.messagesTabLabels)
+                    } finally {
+                        recycleSafe(root)
+                    }
+                },
+                showIntervention = { req ->
+                    overlay.showIntervention(
+                        req,
+                        onGoMessages = {
+                            val rules = orchestrator.rulesForAppId(req.surfaceId.substringBefore('.')) ?: return@showIntervention
+                            val pkg = rules.packages.first()
+                            findTargetRoot(pkg)?.let { root ->
+                                try {
+                                    MessageClickResolver.performClick(root, rules.messagesTabLabels)
+                                } finally {
+                                    recycleSafe(root)
+                                }
+                            }
+                            overlay.dismiss()
+                            orchestrator.sheetShownForSurface = null
+                        },
+                        onBreak = {
+                            overlay.dismiss()
+                            orchestrator.sheetShownForSurface = null
+                        },
+                        onHome = {
+                            performGlobalAction(GLOBAL_ACTION_HOME)
+                            overlay.dismiss()
+                            orchestrator.sheetShownForSurface = null
+                        },
+                    )
+                },
+                showGate = { req ->
+                    overlay.showGate(
+                        req,
+                        onConfirm = {
+                            overlay.dismiss()
+                            orchestrator.sheetShownForSurface = null
+                        },
+                        onMessages = {
+                            val rules = orchestrator.rulesForAppId(req.surfaceId.substringBefore('.')) ?: return@showGate
+                            findTargetRoot(rules.packages.first())?.let { root ->
+                                try {
+                                    MessageClickResolver.performClick(root, rules.messagesTabLabels)
+                                } finally {
+                                    recycleSafe(root)
+                                }
+                            }
+                            overlay.dismiss()
+                            orchestrator.sheetShownForSurface = null
+                        },
+                        onNotNow = {
+                            overlay.dismiss()
+                            orchestrator.sheetShownForSurface = null
+                        },
+                    )
+                },
+                dismissSheet = {
+                    overlay.dismiss()
+                    sheetTimeoutJob?.cancel()
+                },
+                scheduleRecheck = { generation, packageName ->
+                    scope.launch {
+                        delay(QuietTiming.RECHECK_DELAY_MS)
+                        engine.runRecheck(packageName, generation)
+                    }
+                },
+                scheduleSheetTimeout = {
+                    sheetTimeoutJob?.cancel()
+                    sheetTimeoutJob = scope.launch {
+                        delay(QuietTiming.SHEET_TIMEOUT_MS)
+                        engine.onSheetTimeout()
+                    }
+                },
+            ),
+        )
         syncPolicy()
         startHeartbeat()
     }
@@ -39,11 +128,7 @@ class QuietAccessibilityService : AccessibilityService() {
             when (pkg) {
                 packageName -> return
                 "com.instagram.android", "com.zhiliaoapp.musically" -> handleTarget(pkg)
-                else -> {
-                    val fx = orchestrator.onForeignPackage()
-                    if (fx.dismissSheet) overlay.dismiss()
-                    if (fx.clearStability) orchestrator.stability = StabilityState()
-                }
+                else -> engine.onForeignPackage()
             }
         } catch (_: Throwable) {
             overlay.dismiss()
@@ -52,93 +137,62 @@ class QuietAccessibilityService : AccessibilityService() {
     }
 
     private fun handleTarget(packageName: String) {
-        if (orchestrator.shouldSuppress()) return
-        if (!orchestrator.markDirty()) return
-        scope.launch {
+        if (!engine.onTargetEvent(packageName)) return
+        debounceJob?.cancel()
+        debounceJob = scope.launch {
             delay(QuietTiming.DEBOUNCE_MS)
-            if (!orchestrator.shouldRunWalk()) return@launch
-            runWalk(packageName)
+            val fx = engine.runDebouncedWalk(packageName) ?: return@launch
+            logEffect(fx)
         }
     }
 
-    private fun runWalk(packageName: String) {
+    private fun logEffect(fx: OrchestratorEffects) {
+        val action = fx.logAction ?: return
+        val appId = orchestrator.stability.stableSurfaceId?.substringBefore('.') ?: return
+        scope.launch(Dispatchers.IO) {
+            try {
+                (application as QuietApplication).eventRepository.log(
+                    action,
+                    appId,
+                    orchestrator.stability.stableSurfaceId ?: "unknown",
+                )
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun walkTargetWindow(packageName: String): quiet.core.walk.WalkResult {
+        val root = findTargetRoot(packageName) ?: return quiet.core.walk.WalkResult(emptyList(), false)
+        val adapter = root.toAdapter()
         try {
-            val rules = orchestrator.rulesFor(packageName) ?: return
-            val root = windows?.firstOrNull { it.root?.packageName == packageName }?.root
-                ?: rootInActiveWindow?.takeIf { it.packageName == packageName }
-            val walk = if (root != null) {
-                val adapter = root.toAdapter()
-                try {
-                    TreeWalker.walk(adapter)
-                } finally {
-                    recycleSafe(root)
-                }
-            } else {
-                quiet.core.walk.WalkResult(emptyList(), false)
-            }
-            val fx = orchestrator.processWalk(packageName, walk, rules)
-            applyEffects(fx, walk.nodes, rules)
-        } catch (_: Throwable) {
-            overlay.dismiss()
-            orchestrator.stability = StabilityState()
+            return TreeWalker.walk(adapter)
+        } finally {
+            recycleSafe(root)
         }
     }
 
-    private fun applyEffects(
-        fx: OrchestratorEffects,
-        nodes: List<quiet.core.model.NodeInfo>,
-        rules: quiet.core.rules.AppRules,
-    ) {
-        if (fx.dismissSheet) overlay.dismiss()
-        fx.clickMessages?.let { node ->
-            performMessagesClick(node, rules)
+    private fun findTargetRoot(packageName: String): AccessibilityNodeInfo? {
+        val fromWindows = windows?.firstOrNull { it.root?.packageName?.toString() == packageName }?.root
+        if (fromWindows != null) return AccessibilityNodeInfo.obtain(fromWindows)
+        val active = rootInActiveWindow
+        if (active != null && active.packageName?.toString() == packageName) {
+            return AccessibilityNodeInfo.obtain(active)
         }
-        fx.showSheet?.let { req ->
-            overlay.showIntervention(
-                req,
-                onGoMessages = { performMessagesClick(nodes, rules); overlay.dismiss() },
-                onBreak = { overlay.dismiss() },
-                onHome = { performGlobalAction(GLOBAL_ACTION_HOME); overlay.dismiss() },
-            )
-        }
-        fx.showGate?.let { req ->
-            overlay.showGate(
-                req,
-                onConfirm = { overlay.dismiss() },
-                onMessages = { performMessagesClick(nodes, rules); overlay.dismiss() },
-                onNotNow = { overlay.dismiss() },
-            )
-        }
-        if (fx.logAction != null) {
-            val app = (application as QuietApplication)
-            scope.launch(Dispatchers.IO) {
-                try {
-                    app.eventRepository.log(
-                        fx.logAction,
-                        rules.app,
-                        orchestrator.stability.stableSurfaceId ?: "unknown",
-                    )
-                } catch (_: Exception) {
-                }
-            }
-        }
+        return null
     }
 
-    private fun performMessagesClick(nodes: List<quiet.core.model.NodeInfo>, rules: quiet.core.rules.AppRules) {
-        val target = SurfaceClassifier.findMessagesNode(nodes, rules.messagesTabLabels) ?: return
-        // Click performed on live tree in production; sheet fallback when unavailable.
-    }
-
-    private fun performMessagesClick(node: quiet.core.model.NodeInfo, rules: quiet.core.rules.AppRules) {
-        performMessagesClick(listOf(node), rules)
-    }
+    fun captureSnapshotForDiagnostics(): SnapshotCapture.Result =
+        SnapshotCapture.capture(this, orchestrator::rulesFor)
 
     override fun onInterrupt() {
         overlay.dismiss()
+        sheetTimeoutJob?.cancel()
     }
 
     override fun onDestroy() {
+        instance = null
         overlay.dismiss()
+        sheetTimeoutJob?.cancel()
         super.onDestroy()
     }
 
@@ -149,6 +203,15 @@ class QuietAccessibilityService : AccessibilityService() {
             gateMinutes = snap.gateMinutes,
             policies = snap.surfacePolicies,
             friends = snap.friendsReels,
+        )
+        orchestrator.memory = orchestrator.memory.copy(
+            quietHoursEnabled = snap.quietHoursEnabled,
+            quietHoursStartMinutes = snap.quietHoursStartMinutes,
+            quietHoursEndMinutes = snap.quietHoursEndMinutes,
+            breaksRemainingToday = snap.breaksRemainingToday,
+            breakAllowancePerDay = snap.breaksPerDay,
+            breakDayKey = snap.breakDayKey,
+            breakUntilEpochMs = snap.breakUntilEpochMs,
         )
     }
 
@@ -173,4 +236,9 @@ class QuietAccessibilityService : AccessibilityService() {
 
     private fun readRules(path: String): String =
         javaClass.classLoader.getResource(path)?.readText() ?: error("Missing $path")
+
+    companion object {
+        @Volatile
+        var instance: QuietAccessibilityService? = null
+    }
 }

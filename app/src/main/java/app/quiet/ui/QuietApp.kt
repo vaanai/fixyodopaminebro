@@ -15,6 +15,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import app.quiet.ui.navigation.QuietBottomBar
 import app.quiet.ui.onboarding.OnboardingScreen
+import app.quiet.ui.screens.AppDetailScreen
 import app.quiet.ui.screens.AppsScreen
 import app.quiet.ui.screens.LibraryScreen
 import app.quiet.ui.screens.SettingsScreen
@@ -65,7 +66,11 @@ fun QuietApp() {
             }
             composable("apps") {
                 val vm: AppsViewModel = viewModel()
-                AppsScreen(vm = vm)
+                AppsScreen(vm = vm, onOpenApp = { nav.navigate("app/$it") })
+            }
+            composable("app/{appId}") { entry ->
+                val appId = entry.arguments?.getString("appId") ?: return@composable
+                AppDetailScreen(appId = appId, onBack = { nav.popBackStack() })
             }
             composable("library") {
                 val vm: LibraryViewModel = viewModel()

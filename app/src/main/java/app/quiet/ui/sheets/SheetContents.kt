@@ -12,8 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -121,6 +124,21 @@ private fun HoldRing(onComplete: () -> Unit) {
     var progress by remember { mutableFloatStateOf(0f) }
     var holding by remember { mutableStateOf(false) }
     val ringSize = radius.ringSize
+    LaunchedEffect(holding) {
+        if (!holding) return@LaunchedEffect
+        val start = System.currentTimeMillis()
+        while (isActive && holding) {
+            val elapsed = System.currentTimeMillis() - start
+            progress = (elapsed.toFloat() / QuietTiming.GATE_HOLD_MS).coerceIn(0f, 1f)
+            if (progress >= 1f) {
+                holding = false
+                onComplete()
+                break
+            }
+            delay(16)
+        }
+        if (!holding && progress < 1f) progress = 0f
+    }
     Canvas(
         modifier = Modifier
             .size(ringSize)
@@ -128,24 +146,12 @@ private fun HoldRing(onComplete: () -> Unit) {
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { holding = true },
-                    onDragEnd = {
-                        holding = false
-                        if (progress < 1f) progress = 0f
-                    },
-                    onDragCancel = {
-                        holding = false
-                        progress = 0f
-                    },
+                    onDragEnd = { holding = false },
+                    onDragCancel = { holding = false },
                     onDrag = { change, _ ->
                         val center = Offset(ringSize.toPx() / 2, ringSize.toPx() / 2)
                         val dist = hypot(change.position.x - center.x, change.position.y - center.y)
-                        if (dist > ringSize.toPx() / 2 + 8.dp.toPx()) {
-                            holding = false
-                            progress = 0f
-                        } else if (holding) {
-                            progress = (progress + 16f / QuietTiming.GATE_HOLD_MS).coerceAtMost(1f)
-                            if (progress >= 1f) onComplete()
-                        }
+                        if (dist > ringSize.toPx() / 2 + 8.dp.toPx()) holding = false
                     },
                 )
             },

@@ -55,6 +55,11 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         reload()
     }
 
+    fun clearFilters() {
+        _state.value = _state.value.copy(typeFilter = "All", statusFilter = null)
+        reload()
+    }
+
     fun save(item: LibraryItemEntity) {
         viewModelScope.launch {
             if (item.id == 0L) {

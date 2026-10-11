@@ -157,6 +157,7 @@ class ServiceOrchestrator(
                 memory = Enforcer.recordRedirect(memory, action.surfaceId, object : quiet.core.enforce.Clock {
                     override fun millis(): Long = clock()
                 })
+                suppressUntil = clock() + QuietTiming.ACTION_SUPPRESS_MS
                 recheckGeneration++
                 OrchestratorEffects(
                     clickMessages = messagesNode,
@@ -164,18 +165,22 @@ class ServiceOrchestrator(
                     logAction = "REDIRECTED",
                 )
             }
-            EnforcementAction.ShowGate -> OrchestratorEffects(
-                showGate = GateRequest(
-                    observation.surfaceId!!,
-                    surfaceLabel,
-                    policySnapshot.gateMinutes,
-                ),
-                logAction = "GATE_SHOWN",
-            )
+            EnforcementAction.ShowGate -> {
+                suppressUntil = clock() + QuietTiming.ACTION_SUPPRESS_MS
+                OrchestratorEffects(
+                    showGate = GateRequest(
+                        observation.surfaceId!!,
+                        surfaceLabel,
+                        policySnapshot.gateMinutes,
+                    ),
+                    logAction = "GATE_SHOWN",
+                )
+            }
             is EnforcementAction.ShowSheet -> {
                 memory = Enforcer.recordSheet(memory, object : quiet.core.enforce.Clock {
                     override fun millis(): Long = clock()
                 })
+                suppressUntil = clock() + QuietTiming.ACTION_SUPPRESS_MS
                 sheetShownForSurface = action.surfaceId
                 OrchestratorEffects(
                     showSheet = SheetRequest(
@@ -193,6 +198,12 @@ class ServiceOrchestrator(
     fun rulesFor(packageName: String): AppRules? = when (packageName) {
         "com.instagram.android" -> instagramRules
         "com.zhiliaoapp.musically" -> tiktokRules
+        else -> null
+    }
+
+    fun rulesForAppId(appId: String): AppRules? = when (appId) {
+        "instagram" -> instagramRules
+        "tiktok" -> tiktokRules
         else -> null
     }
 }
