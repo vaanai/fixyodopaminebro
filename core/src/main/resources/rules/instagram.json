@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "app": "instagram",
+  "displayName": "Instagram",
+  "packages": ["com.instagram.android"],
+  "messagesTabLabels": ["Messages", "Direct"],
+  "verified": false,
+  "surfaces": [
+    {
+      "id": "dm_inbox",
+      "label": "Messages",
+      "kind": "protected",
+      "defaultPolicy": "ALLOW",
+      "enforce": true,
+      "match": { "selectedTab": ["Messages", "Direct"] }
+    },
+    {
+      "id": "dm_thread",
+      "label": "Thread",
+      "kind": "protected",
+      "defaultPolicy": "ALLOW",
+      "enforce": true,
+      "match": { "hasLabel": ["quiet.synthetic.instagram.dm_thread"] },
+      "notes": "Sentinel until snapshot confirms thread markers"
+    },
+    {
+      "id": "home_feed",
+      "label": "Home feed",
+      "kind": "feed",
+      "defaultPolicy": "BLOCK",
+      "enforce": true,
+      "match": { "selectedTab": ["Home"] }
+    },
+    {
+      "id": "reels",
+      "label": "Reels",
+      "kind": "feed",
+      "defaultPolicy": "BLOCK",
+      "enforce": true,
+      "match": { "selectedTab": ["Reels"] }
+    },
+    {
+      "id": "explore",
+      "label": "Explore",
+      "kind": "feed",
+      "defaultPolicy": "GATE",
+      "enforce": false,
+      "match": { "hasLabel": ["quiet.synthetic.instagram.explore"] }
+    },
+    {
+      "id": "stories",
+      "label": "Stories",
+      "kind": "feed",
+      "defaultPolicy": "GATE",
+      "enforce": false,
+      "match": { "hasLabel": ["quiet.synthetic.instagram.stories"] }
+    },
+    {
+      "id": "dm_shared_reel",
+      "label": "Friends' reels",
+      "kind": "shared_media",
+      "defaultPolicy": "BLOCK",
+      "enforce": false,
+      "match": { "hasLabel": ["quiet.synthetic.instagram.dm_shared_reel"] }
+    },
+    {
+      "id": "profile",
+      "label": "Profile",
+      "kind": "other",
+      "defaultPolicy": "ALLOW",
+      "enforce": false,
+      "match": { "hasLabel": ["quiet.synthetic.instagram.profile"] }
+    }
+  ]
+}
