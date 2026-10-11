@@ -25,6 +25,22 @@ jobs:
       - name: Set up Android SDK
         run: |
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          for bin in \
+            "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" \
+            "$ANDROID_SDK_ROOT/cmdline-tools/16.0/bin" \
+            "$ANDROID_SDK_ROOT/cmdline-tools/12.0/bin"; do
+            if [ -x "$bin/sdkmanager" ]; then
+              echo "$bin" >> "$GITHUB_PATH"
+              break
+            fi
+          done
+          if ! command -v sdkmanager >/dev/null; then
+            echo "sdkmanager not found under $ANDROID_SDK_ROOT"
+            ls -la "$ANDROID_SDK_ROOT" || true
+            ls -la "$ANDROID_SDK_ROOT/cmdline-tools" || true
+            exit 1
+          fi
           yes | sdkmanager --licenses
           sdkmanager \
             "cmdline-tools;latest" \
