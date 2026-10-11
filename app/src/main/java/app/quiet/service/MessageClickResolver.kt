@@ -44,6 +44,50 @@ object MessageClickResolver {
         return null
     }
 
+    fun performClickFromConfirmingLabel(root: AccessibilityNodeInfo, labelFromWalk: NodeInfo): Boolean {
+        val label = findLabelNodeMatching(root, labelFromWalk) ?: return false
+        val target = findAndroidClickTarget(label) ?: run {
+            label.recycle()
+            return false
+        }
+        val clicked = target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        target.recycle()
+        label.recycle()
+        return clicked
+    }
+
+    fun findLabelNodeMatching(root: AccessibilityNodeInfo, fromWalk: NodeInfo): AccessibilityNodeInfo? {
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.add(AccessibilityNodeInfo.obtain(root))
+        while (stack.isNotEmpty()) {
+            val node = stack.removeFirst()
+            val matchesBounds = node.boundsMatch(fromWalk)
+            val texts = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
+            val textMatch = fromWalk.text?.let { t -> texts.any { it.equals(t, true) } } == true ||
+                (fromWalk.text == null && fromWalk.contentDescription?.let { d ->
+                    texts.any { it.equals(d, true) }
+                } == true)
+            if (matchesBounds && textMatch) {
+                stack.forEach { if (it !== node) it.recycle() }
+                return AccessibilityNodeInfo.obtain(node)
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { stack.add(it) }
+            }
+            if (node !== root) node.recycle()
+        }
+        return null
+    }
+
+    private fun AccessibilityNodeInfo.boundsMatch(fromWalk: NodeInfo): Boolean {
+        val r = android.graphics.Rect()
+        getBoundsInScreen(r)
+        return r.left == fromWalk.boundsLeft &&
+            r.top == fromWalk.boundsTop &&
+            r.right == fromWalk.boundsRight &&
+            r.bottom == fromWalk.boundsBottom
+    }
+
     fun performClick(root: AccessibilityNodeInfo, labels: List<String>): Boolean {
         val label = findLabelNode(root, labels) ?: return false
         val target = findAndroidClickTarget(label) ?: run {

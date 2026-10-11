@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import app.quiet.QuietApplication
+import app.quiet.data.policy.EnforcementStateRepository
 import app.quiet.data.policy.PolicySnapshotHolder
 import app.quiet.snapshot.SnapshotCapture
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import quiet.core.QuietTiming
 import quiet.core.rules.RuleParser
 import quiet.core.walk.TreeWalker
@@ -25,6 +27,7 @@ class QuietAccessibilityService : AccessibilityService() {
     private val heartbeatRunning = AtomicBoolean(false)
     private var sheetTimeoutJob: Job? = null
     private var debounceJob: Job? = null
+    private val confirmingWalkHolder = ConfirmingWalkHolder()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -38,13 +41,12 @@ class QuietAccessibilityService : AccessibilityService() {
             clock = { System.currentTimeMillis() },
             callbacks = EngineCallbacks(
                 walk = { packageName -> walkTargetWindow(packageName) },
-                clickMessages = { _, rules ->
-                    val root = findTargetRoot(rules.packages.first()) ?: return@EngineCallbacks false
-                    try {
-                        MessageClickResolver.performClick(root, rules.messagesTabLabels)
-                    } finally {
-                        recycleSafe(root)
-                    }
+                clickMessages = { label, _, _ ->
+                    clickMessagesOnHeldRoot(
+                        confirmingWalkHolder,
+                        label,
+                        MessageClickResolver::performClickFromConfirmingLabel,
+                    )
                 },
                 showIntervention = { req ->
                     overlay.showIntervention(
@@ -63,8 +65,17 @@ class QuietAccessibilityService : AccessibilityService() {
                             orchestrator.sheetShownForSurface = null
                         },
                         onBreak = {
-                            overlay.dismiss()
-                            orchestrator.sheetShownForSurface = null
+                            scope.launch(Dispatchers.IO) {
+                                val app = application as QuietApplication
+                                orchestrator.memory = app.enforcementStateRepository.startBreak(
+                                    orchestrator.memory,
+                                    System.currentTimeMillis(),
+                                )
+                                withContext(Dispatchers.Main) {
+                                    overlay.dismiss()
+                                    orchestrator.sheetShownForSurface = null
+                                }
+                            }
                         },
                         onHome = {
                             performGlobalAction(GLOBAL_ACTION_HOME)
@@ -77,8 +88,24 @@ class QuietAccessibilityService : AccessibilityService() {
                     overlay.showGate(
                         req,
                         onConfirm = {
-                            overlay.dismiss()
-                            orchestrator.sheetShownForSurface = null
+                            scope.launch(Dispatchers.IO) {
+                                val app = application as QuietApplication
+                                val minutes = orchestrator.policySnapshot.gateMinutes
+                                val now = System.currentTimeMillis()
+                                orchestrator.memory = app.enforcementStateRepository.grantGatePass(
+                                    req.surfaceId,
+                                    minutes,
+                                    orchestrator.memory,
+                                    now,
+                                )
+                                logEffect(
+                                    OrchestratorEffects(logAction = "GATE_CONFIRMED"),
+                                )
+                                withContext(Dispatchers.Main) {
+                                    overlay.dismiss()
+                                    orchestrator.sheetShownForSurface = null
+                                }
+                            }
                         },
                         onMessages = {
                             val rules = orchestrator.rulesForAppId(req.surfaceId.substringBefore('.')) ?: return@showGate
@@ -141,8 +168,10 @@ class QuietAccessibilityService : AccessibilityService() {
         debounceJob?.cancel()
         debounceJob = scope.launch {
             delay(QuietTiming.DEBOUNCE_MS)
+            syncMemoryFromHolder()
             val fx = engine.runDebouncedWalk(packageName) ?: return@launch
             logEffect(fx)
+            confirmingWalkHolder.release(::recycleSafe)
         }
     }
 
@@ -162,16 +191,16 @@ class QuietAccessibilityService : AccessibilityService() {
     }
 
     private fun walkTargetWindow(packageName: String): quiet.core.walk.WalkResult {
+        confirmingWalkHolder.release(::recycleSafe)
         val root = findTargetRoot(packageName) ?: return quiet.core.walk.WalkResult(emptyList(), false)
+        confirmingWalkHolder.heldRoot = root
+        confirmingWalkHolder.heldPackage = packageName
         val adapter = root.toAdapter()
-        try {
-            return TreeWalker.walk(adapter)
-        } finally {
-            recycleSafe(root)
-        }
+        return TreeWalker.walk(adapter)
     }
 
     private fun findTargetRoot(packageName: String): AccessibilityNodeInfo? {
+        confirmingWalkHolder.freshRootLookups++
         val fromWindows = windows?.firstOrNull { it.root?.packageName?.toString() == packageName }?.root
         if (fromWindows != null) return AccessibilityNodeInfo.obtain(fromWindows)
         val active = rootInActiveWindow
@@ -204,14 +233,20 @@ class QuietAccessibilityService : AccessibilityService() {
             policies = snap.surfacePolicies,
             friends = snap.friendsReels,
         )
+        syncMemoryFromHolder()
+    }
+
+    private fun syncMemoryFromHolder() {
+        val persisted = EnforcementStateRepository.memoryFromRuntime(PolicySnapshotHolder.get())
         orchestrator.memory = orchestrator.memory.copy(
-            quietHoursEnabled = snap.quietHoursEnabled,
-            quietHoursStartMinutes = snap.quietHoursStartMinutes,
-            quietHoursEndMinutes = snap.quietHoursEndMinutes,
-            breaksRemainingToday = snap.breaksRemainingToday,
-            breakAllowancePerDay = snap.breaksPerDay,
-            breakDayKey = snap.breakDayKey,
-            breakUntilEpochMs = snap.breakUntilEpochMs,
+            passes = persisted.passes,
+            quietHoursEnabled = persisted.quietHoursEnabled,
+            quietHoursStartMinutes = persisted.quietHoursStartMinutes,
+            quietHoursEndMinutes = persisted.quietHoursEndMinutes,
+            breaksRemainingToday = persisted.breaksRemainingToday,
+            breakAllowancePerDay = persisted.breakAllowancePerDay,
+            breakDayKey = persisted.breakDayKey,
+            breakUntilEpochMs = persisted.breakUntilEpochMs,
         )
     }
 
@@ -221,6 +256,7 @@ class QuietAccessibilityService : AccessibilityService() {
             val app = application as QuietApplication
             while (heartbeatRunning.get()) {
                 app.preferences.writeHeartbeat(System.currentTimeMillis())
+                syncMemoryFromHolder()
                 delay(QuietTiming.HEARTBEAT_INTERVAL_MS)
             }
         }

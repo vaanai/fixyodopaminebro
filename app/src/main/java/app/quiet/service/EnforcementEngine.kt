@@ -11,7 +11,7 @@ import quiet.core.walk.WalkResult
 
 data class EngineCallbacks(
     val walk: (String) -> WalkResult,
-    val clickMessages: (List<NodeInfo>, AppRules) -> Boolean,
+    val clickMessages: (NodeInfo, List<NodeInfo>, AppRules) -> Boolean,
     val showIntervention: (SheetRequest) -> Unit,
     val showGate: (GateRequest) -> Unit,
     val dismissSheet: () -> Unit,
@@ -130,7 +130,7 @@ class EnforcementEngine(
         if (fx.clickMessages != null) {
             val label = SurfaceClassifier.findMessagesNode(nodes, rules.messagesTabLabels)
             val clicked = if (label != null && MessageClickResolver.planClickForTest(label, nodes)) {
-                callbacks.clickMessages(nodes, rules)
+                callbacks.clickMessages(label, nodes, rules)
             } else {
                 false
             }

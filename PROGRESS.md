@@ -1,23 +1,21 @@
 # Progress
 
-| Milestone | Status | Tests (module) |
-|-----------|--------|----------------|
-| M0 Scaffold | done | core 1, app 2 |
-| M2 Rule engine | done | core +25 |
-| M3 Enforcer | done | (in core) |
-| M5 Storage | done | app +4 |
-| M1 Structural UI | done | app +2 |
-| M4 Accessibility service | done | app +6 |
-| M6 Today, Apps, Settings | done | (ViewModels wired) |
-| M8 Onboarding / health | done | app +1 |
-| M9 Snapshot tool | done | core +4 |
-| M7 Library | done | (repository + screen) |
-| M10 Release | done | app +1 |
+| Milestone | Status | Notes |
+|-----------|--------|-------|
+| M0 Scaffold | done | |
+| M2 Rule engine | done | core tests |
+| M3 Enforcer | done | |
+| M5 Storage | done | |
+| M1 Structural UI | done | tokens + components |
+| M4 Accessibility service | done | `EnforcementEngine`, M4 sequence tests, real click + recheck |
+| M6 Today, Apps, Settings | done | app detail, diagnostics capture |
+| M8 Onboarding / health | done | |
+| M9 Snapshot tool | done | redactor + capture + share |
+| M7 Library | done | add/edit sheet, delete confirm |
+| M10 Release | done | README, release script |
 
-**Latest JVM run:** `./gradlew :core:test :app:test :app:assembleDebug` — **BUILD SUCCESSFUL** (core **36** tests, app **15** tests, **51** total).
+**Latest JVM run:** `./gradlew :core:test :app:test :app:assembleDebug` — **BUILD SUCCESSFUL** (core **37** tests, app **34** tests, **71** total).
 
-**Emulator smoke:** Not run (no AVD configured in this environment). See note below.
+**Enforcement wiring:** Gate hold → `grantGatePass` (DataStore + `PolicySnapshotHolder`); breaks from sheet + Today → `startBreak`/`endBreak`; redirect Messages click uses confirming-walk root (`clickMessagesOnHeldRoot`); `syncMemoryFromHolder` preserves passes on policy sync.
 
-## Emulator
-
-No system image was installed for smoke UI capture. On-device checks remain in `MORNING.md`.
+**Emulator smoke:** Not run — no system image installed in this VM (unchanged).

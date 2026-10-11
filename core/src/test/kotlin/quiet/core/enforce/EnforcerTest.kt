@@ -172,6 +172,17 @@ class EnforcerTest {
     }
 
     @Test
+    fun grantPassSuppressesEnforcementUntilExpiry() {
+        val clock = FakeClock(0, zone)
+        val memory = Enforcer.grantPass(EnforcementMemory(), "instagram.home_feed", 10, clock)
+        val action = Enforcer.decide(obs(policy = Policy.GATE), memory, clock)
+        assertEquals(EnforcementAction.None, action)
+        clock.advance(10 * 60_000L + 1)
+        val after = Enforcer.decide(obs(policy = Policy.GATE), memory, clock)
+        assertEquals(EnforcementAction.ShowGate, after)
+    }
+
+    @Test
     fun startBreakDecrementsAndSetsUntil() {
         val clock = FakeClock(0, zone)
         val memory = EnforcementMemory(breaksRemainingToday = 3, breakAllowancePerDay = 3, breakDayKey = "2026-01-01")

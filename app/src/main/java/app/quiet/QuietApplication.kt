@@ -3,6 +3,7 @@ package app.quiet
 import android.app.Application
 import androidx.room.Room
 import app.quiet.data.db.QuietDatabase
+import app.quiet.data.policy.EnforcementStateRepository
 import app.quiet.data.policy.PolicyRepository
 import app.quiet.data.policy.PolicySnapshotSync
 import app.quiet.data.prefs.QuietPreferences
@@ -26,6 +27,8 @@ class QuietApplication : Application() {
         private set
     lateinit var policyRepository: PolicyRepository
         private set
+    lateinit var enforcementStateRepository: EnforcementStateRepository
+        private set
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -36,6 +39,7 @@ class QuietApplication : Application() {
         eventRepository = EventRepository(database.enforcementEventDao())
         libraryRepository = LibraryRepository(database.libraryItemDao())
         policyRepository = PolicyRepository(preferences)
+        enforcementStateRepository = EnforcementStateRepository(preferences)
         appScope.launch {
             policyRepository.seedBalancedIfNeeded()
             PolicySnapshotSync.refresh(preferences)

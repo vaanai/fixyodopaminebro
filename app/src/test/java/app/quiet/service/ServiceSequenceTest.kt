@@ -11,6 +11,9 @@ import quiet.core.QuietTiming
 import quiet.core.model.NodeInfo
 import quiet.core.rules.AppRules
 import quiet.core.rules.RuleParser
+import quiet.core.enforce.EnforcementMemory
+import quiet.core.enforce.Enforcer
+import quiet.core.enforce.SurfacePass
 import quiet.core.walk.WalkResult
 
 class ServiceSequenceTest {
@@ -54,7 +57,7 @@ class ServiceSequenceTest {
                     walkCount++
                     walkResults.removeFirstOrNull() ?: WalkResult(homeFeed(), false)
                 },
-                clickMessages = { _, _ ->
+                clickMessages = { _, _, _ ->
                     clickCount++
                     true
                 },
@@ -283,6 +286,48 @@ class ServiceSequenceTest {
         engine.runDebouncedWalk("com.instagram.android")
         assertEquals(0, clickCount)
         assertTrue(sheetCount >= 1)
+    }
+
+    @Test
+    fun activeGatePassShowsNoGate() {
+        orchestrator.policySnapshot = PolicyView(
+            gateMinutes = 10,
+            policies = mapOf("instagram.home_feed" to quiet.core.rules.Policy.GATE),
+            friends = emptyMap(),
+        )
+        orchestrator.memory = EnforcementMemory(
+            passes = listOf(SurfacePass("instagram.home_feed", now + 600_000)),
+        )
+        walkResults = mutableListOf(WalkResult(homeFeed(), false), WalkResult(homeFeed(), false))
+        engine.onTargetEvent("com.instagram.android")
+        now += QuietTiming.DEBOUNCE_MS
+        engine.runDebouncedWalk("com.instagram.android")
+        now += QuietTiming.STABILITY_GAP_MS
+        engine.onTargetEvent("com.instagram.android")
+        now += QuietTiming.DEBOUNCE_MS
+        engine.runDebouncedWalk("com.instagram.android")
+        assertEquals(0, gateCount)
+    }
+
+    @Test
+    fun activeBreakSuppressesRedirect() {
+        val clock = object : quiet.core.enforce.Clock {
+            override fun millis(): Long = now
+        }
+        orchestrator.memory = Enforcer.startBreak(
+            EnforcementMemory(breaksRemainingToday = 3, breakAllowancePerDay = 3, breakDayKey = "day"),
+            clock,
+        )
+        walkResults = mutableListOf(WalkResult(homeFeed(), false), WalkResult(homeFeed(), false))
+        engine.onTargetEvent("com.instagram.android")
+        now += QuietTiming.DEBOUNCE_MS
+        engine.runDebouncedWalk("com.instagram.android")
+        now += QuietTiming.STABILITY_GAP_MS
+        engine.onTargetEvent("com.instagram.android")
+        now += QuietTiming.DEBOUNCE_MS
+        engine.runDebouncedWalk("com.instagram.android")
+        assertEquals(0, clickCount)
+        assertEquals(0, sheetCount)
     }
 
     @Test

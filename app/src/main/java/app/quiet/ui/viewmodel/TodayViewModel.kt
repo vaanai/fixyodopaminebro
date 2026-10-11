@@ -5,6 +5,7 @@ import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.quiet.QuietApplication
+import app.quiet.data.policy.EnforcementStateRepository
 import app.quiet.data.prefs.SettingsSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,11 +50,28 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
             blockedToday = blocked,
             presetLabel = prefs.presetId.replaceFirstChar { it.uppercase() },
             quietHoursOn = prefs.quietHoursEnabled,
-            breaksLeft = "${prefs.breaksPerDay - prefs.breaksRemainingToday} / ${prefs.breaksPerDay}",
+            breaksLeft = "${prefs.breaksRemainingToday} / ${prefs.breaksPerDay}",
             showHealthBanner = !serviceOn || stale || prefs.settingsLoadFailed,
             recent = recent,
             breakActive = prefs.breakUntilEpochMs?.let { it > System.currentTimeMillis() } == true,
         )
+    }
+
+    fun startBreak() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val memory = EnforcementStateRepository.memoryFromSnapshot(quietApp.preferences.readSnapshot())
+            quietApp.enforcementStateRepository.startBreak(memory, now)
+            refresh()
+        }
+    }
+
+    fun endBreak() {
+        viewModelScope.launch {
+            val memory = EnforcementStateRepository.memoryFromSnapshot(quietApp.preferences.readSnapshot())
+            quietApp.enforcementStateRepository.endBreak(memory)
+            refresh()
+        }
     }
 
     private fun isAccessibilityEnabled(): Boolean {

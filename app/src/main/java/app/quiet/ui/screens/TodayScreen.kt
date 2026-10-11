@@ -14,6 +14,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import app.quiet.ui.components.HealthBanner
 import app.quiet.ui.components.HeroStat
+import app.quiet.ui.components.QuietOutlineButton
+import app.quiet.ui.components.QuietPrimaryButton
 import app.quiet.ui.theme.QuietThemeAccessor
 import app.quiet.ui.viewmodel.TodayViewModel
 
@@ -44,6 +46,25 @@ fun TodayScreen(vm: TodayViewModel, onSettings: () -> Unit) {
             style = type.label,
             color = colors.textSecondary,
         )
+        Text(
+            text = "Breaks left ${state.breaksLeft}",
+            style = type.body,
+            color = colors.textSecondary,
+            modifier = Modifier.padding(top = spacing.space2),
+        )
+        if (state.breakActive) {
+            QuietPrimaryButton(
+                text = "End break",
+                onClick = { vm.endBreak() },
+                modifier = Modifier.padding(top = spacing.space4),
+            )
+        } else {
+            QuietOutlineButton(
+                text = "Take a 5-minute break",
+                onClick = { vm.startBreak() },
+                modifier = Modifier.padding(top = spacing.space4),
+            )
+        }
         if (state.recent.isEmpty()) {
             Text(
                 text = "Nothing blocked yet today.",
