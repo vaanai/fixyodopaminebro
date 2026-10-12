@@ -1,11 +1,18 @@
 package app.quiet.ui.onboarding
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -24,9 +31,6 @@ import app.quiet.ui.components.QuietSurfaceGroup
 import app.quiet.ui.components.QuietTextButton
 import app.quiet.ui.theme.QuietThemeAccessor
 import app.quiet.ui.viewmodel.OnboardingViewModel
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 
 @Composable
 fun OnboardingScreen(vm: OnboardingViewModel, onDone: () -> Unit) {
@@ -51,41 +55,74 @@ fun OnboardingScreen(vm: OnboardingViewModel, onDone: () -> Unit) {
             .padding(horizontal = spacing.space5),
     ) {
         OnboardingStepIndicator(currentStep = state.step)
-        Column(
+        Box(
             modifier = Modifier
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(top = spacing.space6),
+                .fillMaxWidth(),
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = spacing.space6),
+                verticalArrangement = Arrangement.spacedBy(spacing.space6),
+            ) {
             when (state.step) {
                 1 -> {
-                    Text(
-                        text = "Quiet pauses feeds. Messages stay open.",
-                        style = type.headline,
-                        color = colors.textPrimary,
-                    )
-                    Text(
-                        text = "Instagram and TikTok stay on your phone. Quiet never closes them. Messages stay reachable.",
-                        style = type.body,
-                        color = colors.textSecondary,
-                        modifier = Modifier.padding(top = spacing.space2),
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
+                        Text(
+                            text = "Quiet pauses feeds. Messages stay open.",
+                            style = type.headline,
+                            color = colors.textPrimary,
+                        )
+                        Text(
+                            text = "Instagram and TikTok stay on your phone. Quiet never closes them. Messages stay reachable.",
+                            style = type.body,
+                            color = colors.textSecondary,
+                        )
+                    }
                     PresetPicker(
                         selected = state.preset,
                         onSelect = vm::selectPreset,
-                        modifier = Modifier.padding(top = spacing.space6),
                     )
                 }
                 2 -> {
-                    Text(text = "Allow accessibility", style = type.headline, color = colors.textPrimary)
-                    Text(
-                        text = "Quiet reads the layout of supported apps to find feeds. It never stores text from other apps.",
-                        style = type.body,
-                        color = colors.textSecondary,
-                        modifier = Modifier.padding(top = spacing.space2),
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
+                        Text(text = "Allow accessibility", style = type.headline, color = colors.textPrimary)
+                        Text(
+                            text = "Quiet reads the layout of supported apps to find feeds. It never stores text from other apps.",
+                            style = type.body,
+                            color = colors.textSecondary,
+                        )
+                    }
+                    QuietSurfaceGroup(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.padding(spacing.space4),
+                            verticalArrangement = Arrangement.spacedBy(spacing.space3),
+                        ) {
+                            Text(
+                                text = "In accessibility settings",
+                                style = type.title,
+                                color = colors.textPrimary,
+                            )
+                            Text(
+                                text = "Find Quiet in the list, open it, and turn the service on.",
+                                style = type.body,
+                                color = colors.textSecondary,
+                            )
+                            Text(
+                                text = if (state.accessibilityOn) {
+                                    "Status: On"
+                                } else {
+                                    "Status: Off"
+                                },
+                                style = type.label,
+                                color = colors.textSecondary,
+                            )
+                        }
+                    }
                     if (state.showRestrictedHelp) {
-                        QuietSurfaceGroup(modifier = Modifier.padding(top = spacing.space6)) {
+                        QuietSurfaceGroup(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = "If the toggle is greyed out",
                                 style = type.title,
@@ -106,63 +143,105 @@ fun OnboardingScreen(vm: OnboardingViewModel, onDone: () -> Unit) {
                     }
                 }
                 3 -> {
-                    Text(text = "Let Quiet keep running", style = type.headline, color = colors.textPrimary)
-                    Text(
-                        text = "Turn off battery optimization so Android doesn't stop Quiet.",
-                        style = type.body,
-                        color = colors.textSecondary,
-                        modifier = Modifier.padding(top = spacing.space2),
-                    )
-                    Text(
-                        text = "On some phones, also lock Quiet in the recent-apps list, and turn on Auto-start if you see it.",
-                        style = type.body,
-                        color = colors.textSecondary,
-                        modifier = Modifier.padding(top = spacing.space2),
-                    )
-                }
-                else -> {
-                    Text(text = "Ready", style = type.headline, color = colors.textPrimary)
-                    Text(
-                        text = if (state.accessibilityOn) {
-                            "Open Instagram to start."
-                        } else {
-                            "Nothing is paused until accessibility is on. You can turn it on later in Settings."
-                        },
-                        style = type.body,
-                        color = colors.textSecondary,
-                        modifier = Modifier.padding(top = spacing.space2),
-                    )
-                }
-            }
-        }
-        val primaryLabel = when (state.step) {
-            1 -> "Continue"
-            2, 3 -> "Open settings"
-            else -> "Go to Today"
-        }
-        QuietPrimaryButton(
-            text = primaryLabel,
-            onClick = {
-                when (state.step) {
-                    1 -> vm.next()
-                    2 -> vm.openAccessibilitySettings()
-                    3 -> vm.openBatterySettings()
-                    else -> {
-                        vm.finish()
-                        onDone()
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
+                        Text(text = "Let Quiet keep running", style = type.headline, color = colors.textPrimary)
+                        Text(
+                            text = "Turn off battery optimization so Android doesn't stop Quiet.",
+                            style = type.body,
+                            color = colors.textSecondary,
+                        )
+                        Text(
+                            text = "On some phones, also lock Quiet in the recent-apps list, and turn on Auto-start if you see it.",
+                            style = type.body,
+                            color = colors.textSecondary,
+                        )
+                    }
+                    QuietSurfaceGroup(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.padding(spacing.space4),
+                            verticalArrangement = Arrangement.spacedBy(spacing.space3),
+                        ) {
+                            Text(
+                                text = "In battery settings",
+                                style = type.title,
+                                color = colors.textPrimary,
+                            )
+                            Text(
+                                text = "Choose Unrestricted or Don't optimize for Quiet.",
+                                style = type.body,
+                                color = colors.textSecondary,
+                            )
+                        }
                     }
                 }
-            },
-        )
-        if (state.step in 2..3) {
-            QuietTextButton(text = "Not now", onClick = vm::next)
+                else -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
+                        Text(text = "Ready", style = type.headline, color = colors.textPrimary)
+                        Text(
+                            text = if (state.accessibilityOn) {
+                                "Open Instagram to start."
+                            } else {
+                                "Nothing is paused until accessibility is on. You can turn it on later in Settings."
+                            },
+                            style = type.body,
+                            color = colors.textSecondary,
+                        )
+                    }
+                    QuietSurfaceGroup(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.padding(spacing.space4),
+                            verticalArrangement = Arrangement.spacedBy(spacing.space2),
+                        ) {
+                            Text(
+                                text = "Accessibility",
+                                style = type.title,
+                                color = colors.textPrimary,
+                            )
+                            Text(
+                                text = if (state.accessibilityOn) "On — feeds can pause in supported apps." else "Off — turn it on when you are ready.",
+                                style = type.body,
+                                color = colors.textSecondary,
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(spacing.space4))
+            }
         }
-        if (state.step == 4 && !state.accessibilityOn) {
-            QuietTextButton(text = "Open settings", onClick = vm::openAccessibilitySettings, accent = true)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(spacing.space2),
+        ) {
+            val primaryLabel = when (state.step) {
+                1 -> "Continue"
+                2, 3 -> "Open settings"
+                else -> "Go to Today"
+            }
+            QuietPrimaryButton(
+                text = primaryLabel,
+                onClick = {
+                    when (state.step) {
+                        1 -> vm.next()
+                        2 -> vm.openAccessibilitySettings()
+                        3 -> vm.openBatterySettings()
+                        else -> {
+                            vm.finish()
+                            onDone()
+                        }
+                    }
+                },
+            )
+            if (state.step in 2..3) {
+                QuietTextButton(text = "Not now", onClick = vm::next)
+            }
+            if (state.step == 4 && !state.accessibilityOn) {
+                QuietTextButton(text = "Open settings", onClick = vm::openAccessibilitySettings, accent = true)
+            }
+            if (state.step == 4 && state.accessibilityOn && state.instagramInstalled) {
+                QuietTextButton(text = "Open Instagram", onClick = vm::openInstagram)
+            }
         }
-        if (state.step == 4 && state.accessibilityOn && state.instagramInstalled) {
-            QuietTextButton(text = "Open Instagram", onClick = vm::openInstagram)
-        }
-        Spacer(modifier = Modifier.padding(bottom = spacing.space2))
+        Spacer(modifier = Modifier.height(spacing.space2))
     }
 }

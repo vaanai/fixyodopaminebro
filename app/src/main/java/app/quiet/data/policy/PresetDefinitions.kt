@@ -48,7 +48,7 @@ object PresetDefinitions {
     }
 
     fun friendsReelsForPreset(presetId: String): Map<String, Policy> = when (presetId) {
-        PresetIds.LIGHT -> friendsSurfaces.associateWith { Policy.OPEN_ONLY }
+        PresetIds.LIGHT -> friendsSurfaces.associateWith { Policy.ALLOW }
         else -> friendsSurfaces.associateWith { Policy.BLOCK }
     }
 }

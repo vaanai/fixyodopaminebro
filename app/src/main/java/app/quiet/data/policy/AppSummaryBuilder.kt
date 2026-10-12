@@ -27,6 +27,7 @@ object AppSummaryBuilder {
             val policy = friends[surface.fullId] ?: surface.defaultPolicy
             when (policy) {
                 Policy.BLOCK -> "Friends' reels off"
+                Policy.ALLOW -> "Friends' reels allowed"
                 Policy.OPEN_ONLY -> "Friends' reels allowed"
                 else -> null
             }
