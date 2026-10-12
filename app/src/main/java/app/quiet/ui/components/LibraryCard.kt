@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.quiet.data.db.LibraryItemEntity
+import app.quiet.data.library.LibraryTitleFormatter
 import app.quiet.ui.theme.QuietThemeAccessor
 
 @Composable
@@ -38,7 +39,7 @@ fun LibraryCard(item: LibraryItemEntity, onClick: () -> Unit, modifier: Modifier
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = item.title,
+                text = LibraryTitleFormatter.normalize(item.title),
                 style = type.title,
                 color = colors.textPrimary,
                 maxLines = 1,

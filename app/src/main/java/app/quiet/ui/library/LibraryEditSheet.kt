@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import app.quiet.data.db.LibraryItemEntity
+import app.quiet.data.library.LibraryTitleFormatter
 import app.quiet.ui.components.FilterChip
 import app.quiet.ui.components.QuietPrimaryButton
 import app.quiet.ui.components.RatingDotsRow
@@ -40,7 +41,9 @@ fun LibraryEditSheet(
     val spacing = QuietThemeAccessor.spacing
     val type = QuietThemeAccessor.typography
     val colors = QuietThemeAccessor.colors
-    var title by remember { mutableStateOf(initial?.title ?: "") }
+    var title by remember {
+        mutableStateOf(LibraryTitleFormatter.normalize(initial?.title ?: ""))
+    }
     var typeSel by remember { mutableStateOf(initial?.type) }
     var status by remember { mutableStateOf(initial?.status ?: "Want") }
     var progress by remember { mutableStateOf(initial?.progress ?: "") }
@@ -91,7 +94,7 @@ fun LibraryEditSheet(
                     onSave(
                         LibraryItemEntity(
                             id = initial?.id ?: 0,
-                            title = title.trim(),
+                            title = LibraryTitleFormatter.normalize(title),
                             type = typeSel!!,
                             status = status,
                             progress = progress,
