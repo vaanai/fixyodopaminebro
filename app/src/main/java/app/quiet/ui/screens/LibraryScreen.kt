@@ -3,7 +3,6 @@ package app.quiet.ui.screens
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +33,11 @@ import app.quiet.ui.copy.QuietCopy
 import app.quiet.ui.library.LibraryEditSheet
 import app.quiet.ui.theme.QuietThemeAccessor
 import app.quiet.ui.viewmodel.LibraryViewModel
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 
 @Composable
 fun LibraryScreen(vm: LibraryViewModel) {
@@ -49,7 +53,9 @@ fun LibraryScreen(vm: LibraryViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(spacing.space5),
+            .background(colors.background)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(horizontal = spacing.space5),
     ) {
         QuietTopBar(
             title = "Library",

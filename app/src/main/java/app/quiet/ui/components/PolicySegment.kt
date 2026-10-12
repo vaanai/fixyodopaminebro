@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import app.quiet.ui.theme.QuietThemeAccessor
 import quiet.core.rules.Policy
 
@@ -41,6 +42,8 @@ fun PolicySegment(
             Text(
                 text = label(option),
                 style = type.label,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
                 color = when {
                     isSelected -> colors.onAccent
                     !enabled -> colors.textTertiary
@@ -53,7 +56,7 @@ fun PolicySegment(
                         RoundedCornerShape(radius.radiusS),
                     )
                     .clickable(enabled = enabled && !isSelected) { onSelect(option) }
-                    .padding(vertical = spacing.space2),
+                    .padding(horizontal = spacing.space1, vertical = spacing.space2),
             )
         }
     }

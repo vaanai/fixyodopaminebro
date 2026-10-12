@@ -1,9 +1,14 @@
 package app.quiet.ui.library
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -42,8 +47,17 @@ fun LibraryEditSheet(
     var rating by remember { mutableIntStateOf(initial?.rating ?: 0) }
     var notes by remember { mutableStateOf(initial?.notes ?: "") }
     val canSave = title.isNotBlank() && typeSel != null
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(modifier = Modifier.padding(spacing.space5)) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+    ) {
+        Column(
+            modifier = Modifier
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(spacing.space5),
+        ) {
             Text(
                 text = if (initial == null) "Add item" else "Edit item",
                 style = type.headline,
@@ -51,13 +65,13 @@ fun LibraryEditSheet(
             )
             QuietTextField(label = "Title", value = title, onValueChange = { title = it }, placeholder = "Title")
             Text(text = "Type", style = type.label, color = colors.textSecondary, modifier = Modifier.padding(top = spacing.space4))
-            Row {
+            Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                 listOf("Shows", "Movies", "Books", "Games").forEach { t ->
                     FilterChip(text = t, selected = typeSel == t, onClick = { typeSel = t })
                 }
             }
             Text(text = "Status", style = type.label, color = colors.textSecondary, modifier = Modifier.padding(top = spacing.space4))
-            Row {
+            Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                 listOf("Want", "Now", "Done", "Dropped").forEach { s ->
                     FilterChip(text = s, selected = status == s, onClick = { status = s })
                 }

@@ -78,6 +78,7 @@ fun InterventionSheetContent(
 fun GateSheetContent(
     surfaceLabel: String,
     minutes: Int,
+    holdMs: Long = QuietTiming.GATE_HOLD_MS,
     onConfirm: () -> Unit,
     onGoMessages: () -> Unit,
     onNotNow: () -> Unit,
@@ -110,15 +111,15 @@ fun GateSheetContent(
         if (touchExploration) {
             QuietPrimaryButton(text = "Open for $minutes minutes", onClick = onConfirm)
         } else {
-            HoldRing(onComplete = onConfirm)
+            HoldRing(holdMs = holdMs, onComplete = onConfirm)
         }
         QuietTextButton(text = "Go to Messages", onClick = onGoMessages, accent = false)
-        QuietTextButton(text = "Not now", onClick = onNotNow, accent = false)
+        QuietTextButton(text = "Go home", onClick = onNotNow, accent = false)
     }
 }
 
 @Composable
-private fun HoldRing(onComplete: () -> Unit) {
+private fun HoldRing(holdMs: Long, onComplete: () -> Unit) {
     val colors = QuietThemeAccessor.colors
     val radius = QuietThemeAccessor.radius
     var progress by remember { mutableFloatStateOf(0f) }
@@ -129,7 +130,7 @@ private fun HoldRing(onComplete: () -> Unit) {
         val start = System.currentTimeMillis()
         while (isActive && holding) {
             val elapsed = System.currentTimeMillis() - start
-            progress = (elapsed.toFloat() / QuietTiming.GATE_HOLD_MS).coerceIn(0f, 1f)
+            progress = (elapsed.toFloat() / holdMs).coerceIn(0f, 1f)
             if (progress >= 1f) {
                 holding = false
                 onComplete()

@@ -65,6 +65,7 @@ fun LibraryCard(item: LibraryItemEntity, onClick: () -> Unit, modifier: Modifier
 fun RatingDotsDisplay(rating: Int, modifier: Modifier = Modifier) {
     val colors = QuietThemeAccessor.colors
     val spacing = QuietThemeAccessor.spacing
+    val radius = QuietThemeAccessor.radius
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(spacing.space1)) {
         (1..5).forEach { level ->
             val filled = level <= rating
@@ -75,7 +76,7 @@ fun RatingDotsDisplay(rating: Int, modifier: Modifier = Modifier) {
                         if (filled) {
                             Modifier.background(colors.accent, CircleShape)
                         } else {
-                            Modifier.background(colors.textTertiary, CircleShape)
+                            Modifier.border(radius.borderWidth, colors.border, CircleShape)
                         },
                     ),
             )

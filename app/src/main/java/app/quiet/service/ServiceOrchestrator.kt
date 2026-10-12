@@ -41,7 +41,12 @@ data class SheetRequest(
     val messagesAvailable: Boolean,
 )
 
-data class GateRequest(val surfaceId: String, val label: String, val minutes: Int)
+data class GateRequest(
+    val surfaceId: String,
+    val label: String,
+    val minutes: Int,
+    val holdMs: Long,
+)
 
 class ServiceOrchestrator(
     private val instagramRules: AppRules,
@@ -172,6 +177,7 @@ class ServiceOrchestrator(
                         observation.surfaceId!!,
                         surfaceLabel,
                         policySnapshot.gateMinutes,
+                        QuietTiming.GATE_HOLD_MS,
                     ),
                     logAction = "GATE_SHOWN",
                 )
@@ -217,6 +223,6 @@ data class PolicyView(
         friends[surfaceId] ?: policies[surfaceId] ?: default
 
     companion object {
-        fun allowAll() = PolicyView(10, emptyMap(), emptyMap())
+        fun allowAll() = PolicyView(gateMinutes = 10, policies = emptyMap(), friends = emptyMap())
     }
 }
