@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.quiet.QuietApplication
 import app.quiet.data.policy.EnforcementStateRepository
+import app.quiet.ui.copy.RecentEventFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +26,7 @@ data class TodayUiState(
     val breaksLeft: String = "0 / 0",
     val breaksRemaining: Int = 0,
     val showHealthBanner: Boolean = true,
-    val recent: List<String> = emptyList(),
+    val recent: List<Pair<String, String>> = emptyList(),
     val breakActive: Boolean = false,
     val breakUntilLabel: String? = null,
 )
@@ -39,6 +40,10 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { refresh() }
     }
 
+    fun onResume() {
+        viewModelScope.launch { refresh() }
+    }
+
     suspend fun refresh() {
         val prefs = quietApp.preferences.readSnapshot()
         val serviceOn = isAccessibilityEnabled()
@@ -48,8 +53,8 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val blocked = quietApp.eventRepository.countBlockedToday(startOfDay)
         val gatedTotal = quietApp.eventRepository.gatedMinutesToday(startOfDay, prefs.gateMinutes)
-        val recent = quietApp.eventRepository.recent(5).map {
-            "${it.appId} · ${it.surfaceId} · ${it.action}"
+        val recent = quietApp.eventRepository.recent(5).map { event ->
+            RecentEventFormatter.formatLine(event, prefs.gateMinutes)
         }
         val now = System.currentTimeMillis()
         val breakActive = prefs.breakUntilEpochMs?.let { it > now } == true

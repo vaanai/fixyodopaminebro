@@ -21,7 +21,7 @@ import app.quiet.ui.copy.QuietCopy
 import app.quiet.ui.theme.QuietThemeAccessor
 
 @Composable
-fun PresetPicker(selected: String, onSelect: (String) -> Unit) {
+fun PresetPicker(selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
     val colors = QuietThemeAccessor.colors
     val spacing = QuietThemeAccessor.spacing
     val radius = QuietThemeAccessor.radius
@@ -33,7 +33,7 @@ fun PresetPicker(selected: String, onSelect: (String) -> Unit) {
         PresetIds.CUSTOM,
     )
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(spacing.targetMin)
             .border(radius.borderWidth, colors.border, RoundedCornerShape(radius.radiusM))

@@ -201,9 +201,9 @@ class ServiceSequenceTest {
     @Test
     fun truncatedWeakMatchNoBlock() {
         orchestrator.policySnapshot = PolicyView(
-            10,
-            mapOf("instagram.explore" to quiet.core.rules.Policy.BLOCK),
-            emptyMap(),
+            gateMinutes = 10,
+            policies = mapOf("instagram.explore" to quiet.core.rules.Policy.BLOCK),
+            friends = emptyMap(),
         )
         val explore = listOf(NodeInfo(text = "quiet.synthetic.instagram.explore"))
         walkResults = mutableListOf(WalkResult(explore, truncated = true))

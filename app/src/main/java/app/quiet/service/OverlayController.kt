@@ -47,6 +47,7 @@ class OverlayController(private val service: AccessibilityService) {
             GateSheetContent(
                 surfaceLabel = request.label,
                 minutes = request.minutes,
+                holdMs = request.holdMs,
                 onConfirm = onConfirm,
                 onGoMessages = onMessages,
                 onNotNow = onNotNow,

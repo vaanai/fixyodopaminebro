@@ -1,10 +1,13 @@
 package app.quiet.ui.navigation
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.Today
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -25,31 +28,34 @@ fun QuietBottomBar(selected: Int, onSelect: (Int) -> Unit) {
         Triple(1, "Apps", Icons.Outlined.Apps),
         Triple(2, "Library", Icons.Outlined.Book),
     )
-    NavigationBar(
-        modifier = Modifier.height(spacing.bottomBarHeight),
-        containerColor = colors.background,
-        tonalElevation = 0.dp,
-    ) {
-        items.forEach { (index, label, icon) ->
-            val selectedItem = selected == index
-            NavigationBarItem(
-                selected = selectedItem,
-                onClick = { onSelect(index) },
-                icon = {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                    )
-                },
-                label = { Text(text = label, style = type.label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = colors.accent,
-                    selectedTextColor = colors.accent,
-                    unselectedIconColor = colors.textSecondary,
-                    unselectedTextColor = colors.textSecondary,
-                    indicatorColor = colors.background,
-                ),
-            )
+    Column(modifier = Modifier.navigationBarsPadding()) {
+        HorizontalDivider(color = colors.border, thickness = 1.dp)
+        NavigationBar(
+            modifier = Modifier.height(spacing.bottomBarHeight),
+            containerColor = colors.background,
+            tonalElevation = 0.dp,
+        ) {
+            items.forEach { (index, label, icon) ->
+                val selectedItem = selected == index
+                NavigationBarItem(
+                    selected = selectedItem,
+                    onClick = { onSelect(index) },
+                    icon = {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                        )
+                    },
+                    label = { Text(text = label, style = type.label, maxLines = 1) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = colors.accent,
+                        selectedTextColor = colors.accent,
+                        unselectedIconColor = colors.textSecondary,
+                        unselectedTextColor = colors.textSecondary,
+                        indicatorColor = colors.background,
+                    ),
+                )
+            }
         }
     }
 }

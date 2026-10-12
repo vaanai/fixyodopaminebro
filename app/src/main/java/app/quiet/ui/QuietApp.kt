@@ -1,5 +1,6 @@
 package app.quiet.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -10,8 +11,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.quiet.ui.navigation.QuietBottomBar
 import app.quiet.ui.onboarding.OnboardingScreen
@@ -20,6 +23,7 @@ import app.quiet.ui.screens.AppsScreen
 import app.quiet.ui.screens.LibraryScreen
 import app.quiet.ui.screens.SettingsScreen
 import app.quiet.ui.screens.TodayScreen
+import app.quiet.ui.theme.QuietThemeAccessor
 import app.quiet.ui.viewmodel.AppsViewModel
 import app.quiet.ui.viewmodel.LibraryViewModel
 import app.quiet.ui.viewmodel.OnboardingViewModel
@@ -37,28 +41,43 @@ fun QuietApp() {
         )
         return
     }
+    val colors = QuietThemeAccessor.colors
     val nav = rememberNavController()
+    val backStack by nav.currentBackStackEntryAsState()
+    val currentRoute = backStack?.destination?.route
+    val showBottomBar = currentRoute in setOf("today", "apps", "library")
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(
+        containerColor = colors.background,
         bottomBar = {
-            QuietBottomBar(
-                selected = tab,
-                onSelect = { index ->
-                    tab = index
-                    val route = when (index) {
-                        0 -> "today"
-                        1 -> "apps"
-                        else -> "library"
-                    }
-                    nav.navigate(route) { launchSingleTop = true; popUpTo("today") }
-                },
-            )
+            if (showBottomBar) {
+                QuietBottomBar(
+                    selected = tab,
+                    onSelect = { index ->
+                        tab = index
+                        val route = when (index) {
+                            0 -> "today"
+                            1 -> "apps"
+                            else -> "library"
+                        }
+                        nav.navigate(route) {
+                            popUpTo(nav.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         NavHost(
             navController = nav,
             startDestination = "today",
-            modifier = Modifier.padding(padding),
+            modifier = Modifier
+                .padding(padding)
+                .background(colors.background),
         ) {
             composable("today") {
                 val vm: TodayViewModel = viewModel()

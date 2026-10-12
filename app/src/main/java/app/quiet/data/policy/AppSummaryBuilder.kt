@@ -22,8 +22,20 @@ object AppSummaryBuilder {
         val hasUndetected = rules.surfaces.any {
             (it.kind == SurfaceKind.feed || it.kind == SurfaceKind.shared_media) && !it.enforce
         }
+        val friendsSurface = rules.surfaces.firstOrNull { it.kind == SurfaceKind.shared_media }
+        val friendsPart = friendsSurface?.let { surface ->
+            val policy = friends[surface.fullId] ?: surface.defaultPolicy
+            when (policy) {
+                Policy.BLOCK -> "Friends' reels off"
+                Policy.ALLOW -> "Friends' reels allowed"
+                Policy.OPEN_ONLY -> "Friends' reels allowed"
+                else -> null
+            }
+        }
         val tail = if (hasUndetected) "Other surfaces not detected yet" else null
-        return (feedParts + listOfNotNull(tail)).joinToString(" · ").ifBlank { "Other surfaces not detected yet" }
+        return (feedParts + listOfNotNull(friendsPart, tail))
+            .joinToString(" · ")
+            .ifBlank { "Other surfaces not detected yet" }
     }
 
     private fun parsePolicies(json: String): Map<String, Policy> {

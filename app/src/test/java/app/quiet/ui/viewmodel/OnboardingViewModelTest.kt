@@ -12,10 +12,10 @@ import org.robolectric.annotation.Config
 @Config(sdk = [28])
 class OnboardingViewModelTest {
     @Test
-    fun serviceOffKeepsBanner() {
+    fun accessibilityOffByDefault() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val vm = OnboardingViewModel(app)
-        vm.refreshBanner()
-        assertTrue(vm.state.value.showHealthBanner)
+        vm.refreshDeviceState()
+        assertTrue(!vm.state.value.accessibilityOn)
     }
 }

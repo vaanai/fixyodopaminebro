@@ -32,6 +32,7 @@ data class SettingsUiState(
     val unknownCount: Int = 0,
     val lastActive: String = "Not running",
     val unverifiedWarning: String = "Unverified rules for Instagram.\nUnverified rules for TikTok.",
+    val versionName: String = "1.0.0",
     val captureCountdown: Int? = null,
     val captureMessage: String? = null,
 )
@@ -51,6 +52,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             val last = snap.heartbeatEpochMs?.let {
                 DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it))
             } ?: "Not running"
+            val version = try {
+                getApplication<Application>().packageManager
+                    .getPackageInfo(getApplication<Application>().packageName, 0).versionName ?: "1.0.0"
+            } catch (_: Exception) {
+                "1.0.0"
+            }
             _state.value = _state.value.copy(
                 quietHoursEnabled = snap.quietHoursEnabled,
                 quietHoursStartLabel = formatMinutes(snap.quietHoursStartMinutes),
@@ -61,6 +68,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 batteryStatus = batteryLabel(),
                 unknownCount = snap.unknownSurfaceCount,
                 lastActive = last,
+                versionName = version,
             )
         }
     }
@@ -104,6 +112,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             quietApp.policyRepository.patchSettings { it.copy(gateMinutes = minutes) }
             reload()
         }
+    }
+
+    fun onResume() {
+        reload()
     }
 
     fun openAccessibilitySettings() {

@@ -13,6 +13,7 @@ import app.quiet.ui.theme.QuietThemeAccessor
 fun QuietTopBar(
     title: String,
     modifier: Modifier = Modifier,
+    leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val spacing = QuietThemeAccessor.spacing
@@ -24,6 +25,7 @@ fun QuietTopBar(
             .height(spacing.topBarHeight),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        leading?.invoke()
         Text(
             text = title,
             style = type.headline,

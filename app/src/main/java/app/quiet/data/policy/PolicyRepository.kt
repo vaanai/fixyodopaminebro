@@ -48,7 +48,8 @@ class PolicyRepository(
     suspend fun setFriendsReels(appSurfaceId: String, policy: Policy) = withContext(Dispatchers.IO) {
         val current = preferences.readSnapshot()
         val map = current.friendsReelsJson.fromJson().toMutableMap()
-        map[appSurfaceId] = policy
+        val stored = if (policy == Policy.OPEN_ONLY) Policy.ALLOW else policy
+        map[appSurfaceId] = stored
         preferences.applySnapshot(
             current.copy(
                 presetId = PresetIds.CUSTOM,

@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.quiet.data.db.LibraryItemEntity
+import app.quiet.data.library.LibraryTitleFormatter
 import app.quiet.ui.theme.QuietThemeAccessor
 
 @Composable
@@ -38,7 +39,7 @@ fun LibraryCard(item: LibraryItemEntity, onClick: () -> Unit, modifier: Modifier
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = item.title,
+                text = LibraryTitleFormatter.normalize(item.title),
                 style = type.title,
                 color = colors.textPrimary,
                 maxLines = 1,
@@ -65,6 +66,7 @@ fun LibraryCard(item: LibraryItemEntity, onClick: () -> Unit, modifier: Modifier
 fun RatingDotsDisplay(rating: Int, modifier: Modifier = Modifier) {
     val colors = QuietThemeAccessor.colors
     val spacing = QuietThemeAccessor.spacing
+    val radius = QuietThemeAccessor.radius
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(spacing.space1)) {
         (1..5).forEach { level ->
             val filled = level <= rating
@@ -75,7 +77,7 @@ fun RatingDotsDisplay(rating: Int, modifier: Modifier = Modifier) {
                         if (filled) {
                             Modifier.background(colors.accent, CircleShape)
                         } else {
-                            Modifier.background(colors.textTertiary, CircleShape)
+                            Modifier.border(radius.borderWidth, colors.border, CircleShape)
                         },
                     ),
             )

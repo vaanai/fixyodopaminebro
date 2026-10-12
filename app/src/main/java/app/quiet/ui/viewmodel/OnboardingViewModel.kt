@@ -1,7 +1,10 @@
 package app.quiet.ui.viewmodel
 
 import android.app.Application
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,13 +14,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import quiet.core.QuietTiming
-
 data class OnboardingUiState(
     val step: Int = 1,
     val complete: Boolean = false,
     val showRestrictedHelp: Boolean = Build.VERSION.SDK_INT >= 33,
-    val showHealthBanner: Boolean = true,
+    val accessibilityOn: Boolean = false,
+    val instagramInstalled: Boolean = false,
     val preset: String = PresetIds.BALANCED,
 )
 
@@ -32,7 +34,7 @@ class OnboardingViewModel(app: Application) : AndroidViewModel(app) {
             if (snap.onboardingComplete) {
                 _state.value = _state.value.copy(complete = true)
             }
-            refreshBanner()
+            refreshDeviceState()
         }
     }
 
@@ -49,7 +51,7 @@ class OnboardingViewModel(app: Application) : AndroidViewModel(app) {
             finish()
         } else {
             _state.value = _state.value.copy(step = step + 1)
-            refreshBanner()
+            refreshDeviceState()
         }
     }
 
@@ -61,17 +63,47 @@ class OnboardingViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun refreshBanner() {
+    fun openAccessibilitySettings() {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        getApplication<Application>().startActivity(intent)
+    }
+
+    fun openBatterySettings() {
+        val pkg = getApplication<Application>().packageName
+        val pm = getApplication<Application>().getSystemService(PowerManager::class.java)
+        val intent = if (pm?.isIgnoringBatteryOptimizations(pkg) == true) {
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        } else {
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$pkg")
+            }
+        }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        getApplication<Application>().startActivity(intent)
+    }
+
+    fun openInstagram() {
+        val pm = getApplication<Application>().packageManager
+        val launch = pm.getLaunchIntentForPackage("com.instagram.android") ?: return
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        getApplication<Application>().startActivity(launch)
+    }
+
+    fun refreshDeviceState() {
         viewModelScope.launch {
             val snap = quietApp.preferences.readSnapshot()
-            val serviceOn = isAccessibilityEnabled()
-            val stale = snap.heartbeatEpochMs?.let {
-                System.currentTimeMillis() - it > QuietTiming.HEARTBEAT_STALE_MS
-            } ?: true
             _state.value = _state.value.copy(
-                showHealthBanner = !serviceOn || stale || snap.settingsLoadFailed,
+                accessibilityOn = isAccessibilityEnabled(),
+                instagramInstalled = isPackageInstalled("com.instagram.android"),
+                preset = snap.presetId,
             )
         }
+    }
+
+    private fun isPackageInstalled(packageName: String): Boolean = try {
+        getApplication<Application>().packageManager.getPackageInfo(packageName, 0)
+        true
+    } catch (_: Exception) {
+        false
     }
 
     private fun isAccessibilityEnabled(): Boolean {

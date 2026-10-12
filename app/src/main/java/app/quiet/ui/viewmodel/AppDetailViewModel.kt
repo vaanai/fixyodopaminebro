@@ -77,8 +77,7 @@ class AppDetailViewModel(app: Application, private val appId: String) : AndroidV
     fun setFriendsPolicy(policy: Policy) {
         val friends = rules.surfaces.firstOrNull { it.kind == SurfaceKind.shared_media } ?: return
         viewModelScope.launch {
-            val stored = if (policy == Policy.ALLOW) Policy.OPEN_ONLY else Policy.BLOCK
-            quietApp.policyRepository.setFriendsReels(friends.fullId, stored)
+            quietApp.policyRepository.setFriendsReels(friends.fullId, policy)
             reload()
         }
     }

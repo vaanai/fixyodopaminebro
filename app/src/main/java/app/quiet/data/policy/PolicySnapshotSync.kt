@@ -21,6 +21,7 @@ object PolicySnapshotSync {
                 breakDayKey = "",
                 breakUntilEpochMs = null,
                 gateMinutes = 10,
+                gateHoldSeconds = 3,
                 heartbeatEpochMs = null,
                 unknownSurfaceCount = 0,
                 onboardingComplete = false,
@@ -52,6 +53,7 @@ object PolicySnapshotSync {
             breakDayKey = breakDayKey,
             breakUntilEpochMs = breakUntilEpochMs,
             gateMinutes = gateMinutes,
+            gateHoldSeconds = gateHoldSeconds,
             passes = passes,
         )
     }

@@ -116,6 +116,7 @@ private fun SettingsSnapshot.toRuntimeSnapshot(): RuntimePolicySnapshot =
         breakDayKey = breakDayKey,
         breakUntilEpochMs = breakUntilEpochMs,
         gateMinutes = gateMinutes,
+        gateHoldSeconds = gateHoldSeconds,
         passes = EnforcementStateRepository.parsePasses(passesJson),
     )
 

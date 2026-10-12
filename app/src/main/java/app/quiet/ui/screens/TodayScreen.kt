@@ -1,22 +1,23 @@
 package app.quiet.ui.screens
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import app.quiet.ui.components.HealthBanner
 import app.quiet.ui.components.HeroStat
 import app.quiet.ui.components.QuietPrimaryButton
+import app.quiet.ui.components.QuietScreenColumn
 import app.quiet.ui.components.QuietTextButton
 import app.quiet.ui.components.QuietTopBar
 import app.quiet.ui.components.SecondaryStatPair
@@ -26,15 +27,18 @@ import app.quiet.ui.viewmodel.TodayViewModel
 @Composable
 fun TodayScreen(vm: TodayViewModel, onSettings: () -> Unit) {
     val state by vm.state.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) vm.onResume()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val spacing = QuietThemeAccessor.spacing
     val type = QuietThemeAccessor.typography
     val colors = QuietThemeAccessor.colors
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(spacing.space5),
-    ) {
+    QuietScreenColumn {
         QuietTopBar(
             title = "Today",
             trailing = {
@@ -60,6 +64,7 @@ fun TodayScreen(vm: TodayViewModel, onSettings: () -> Unit) {
             leftLabel = "gated",
             rightValue = state.breaksLeft,
             rightLabel = "breaks left",
+            modifier = Modifier.padding(top = spacing.space6),
         )
         when {
             state.breakActive && state.breakUntilLabel != null -> {
@@ -104,8 +109,14 @@ fun TodayScreen(vm: TodayViewModel, onSettings: () -> Unit) {
                 color = colors.textPrimary,
             )
         } else {
-            state.recent.forEach { line ->
-                Text(text = line, style = type.body, color = colors.textPrimary)
+            state.recent.forEach { (line1, line2) ->
+                Text(text = line1, style = type.title, color = colors.textPrimary)
+                Text(
+                    text = line2,
+                    style = type.label,
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(bottom = spacing.space3),
+                )
             }
         }
     }
