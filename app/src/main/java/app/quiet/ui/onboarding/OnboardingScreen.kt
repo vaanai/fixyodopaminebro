@@ -2,7 +2,6 @@ package app.quiet.ui.onboarding
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -55,18 +54,14 @@ fun OnboardingScreen(vm: OnboardingViewModel, onDone: () -> Unit) {
             .padding(horizontal = spacing.space5),
     ) {
         OnboardingStepIndicator(currentStep = state.step)
-        Box(
+        Column(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(top = spacing.space6),
+            verticalArrangement = Arrangement.spacedBy(spacing.space6),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(top = spacing.space6),
-                verticalArrangement = Arrangement.spacedBy(spacing.space6),
-            ) {
             when (state.step) {
                 1 -> {
                     Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
@@ -85,6 +80,23 @@ fun OnboardingScreen(vm: OnboardingViewModel, onDone: () -> Unit) {
                         selected = state.preset,
                         onSelect = vm::selectPreset,
                     )
+                    QuietSurfaceGroup(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.padding(spacing.space4),
+                            verticalArrangement = Arrangement.spacedBy(spacing.space2),
+                        ) {
+                            Text(
+                                text = "What Quiet pauses in v1",
+                                style = type.title,
+                                color = colors.textPrimary,
+                            )
+                            Text(
+                                text = "Instagram Home and Reels, and TikTok For You and Following. In-chat reels are not detected yet.",
+                                style = type.body,
+                                color = colors.textSecondary,
+                            )
+                        }
+                    }
                 }
                 2 -> {
                     Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
@@ -206,42 +218,40 @@ fun OnboardingScreen(vm: OnboardingViewModel, onDone: () -> Unit) {
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(spacing.space4))
-            }
-        }
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(spacing.space2),
-        ) {
-            val primaryLabel = when (state.step) {
-                1 -> "Continue"
-                2, 3 -> "Open settings"
-                else -> "Go to Today"
-            }
-            QuietPrimaryButton(
-                text = primaryLabel,
-                onClick = {
-                    when (state.step) {
-                        1 -> vm.next()
-                        2 -> vm.openAccessibilitySettings()
-                        3 -> vm.openBatterySettings()
-                        else -> {
-                            vm.finish()
-                            onDone()
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(spacing.space2),
+            ) {
+                val primaryLabel = when (state.step) {
+                    1 -> "Continue"
+                    2, 3 -> "Open settings"
+                    else -> "Go to Today"
+                }
+                QuietPrimaryButton(
+                    text = primaryLabel,
+                    onClick = {
+                        when (state.step) {
+                            1 -> vm.next()
+                            2 -> vm.openAccessibilitySettings()
+                            3 -> vm.openBatterySettings()
+                            else -> {
+                                vm.finish()
+                                onDone()
+                            }
                         }
-                    }
-                },
-            )
-            if (state.step in 2..3) {
-                QuietTextButton(text = "Not now", onClick = vm::next)
+                    },
+                )
+                if (state.step in 2..3) {
+                    QuietTextButton(text = "Not now", onClick = vm::next)
+                }
+                if (state.step == 4 && !state.accessibilityOn) {
+                    QuietTextButton(text = "Open settings", onClick = vm::openAccessibilitySettings, accent = true)
+                }
+                if (state.step == 4 && state.accessibilityOn && state.instagramInstalled) {
+                    QuietTextButton(text = "Open Instagram", onClick = vm::openInstagram)
+                }
             }
-            if (state.step == 4 && !state.accessibilityOn) {
-                QuietTextButton(text = "Open settings", onClick = vm::openAccessibilitySettings, accent = true)
-            }
-            if (state.step == 4 && state.accessibilityOn && state.instagramInstalled) {
-                QuietTextButton(text = "Open Instagram", onClick = vm::openInstagram)
-            }
+            Spacer(modifier = Modifier.height(spacing.space2))
         }
-        Spacer(modifier = Modifier.height(spacing.space2))
     }
 }
