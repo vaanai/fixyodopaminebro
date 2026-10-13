@@ -17,32 +17,32 @@ class PolicyRepository(
         val breaks = PresetDefinitions.breaksForPreset(presetId)
         val (qhOn, qhStart) = PresetDefinitions.quietHoursForPreset(presetId)
         val current = preferences.readSnapshot()
-        preferences.applySnapshot(
-            current.copy(
-                presetId = presetId,
-                quietHoursEnabled = qhOn,
-                quietHoursStartMinutes = qhStart,
-                quietHoursEndMinutes = 7 * 60,
-                breaksPerDay = breaks,
-                breaksRemainingToday = breaks,
-                breakDayKey = "",
-                surfacePoliciesJson = policies.toJson(),
-                friendsReelsJson = friends.toJson(),
-                settingsLoadFailed = false,
-            ),
+        val next = current.copy(
+            presetId = presetId,
+            quietHoursEnabled = qhOn,
+            quietHoursStartMinutes = qhStart,
+            quietHoursEndMinutes = 7 * 60,
+            breaksPerDay = breaks,
+            breaksRemainingToday = breaks,
+            breakDayKey = "",
+            surfacePoliciesJson = policies.toJson(),
+            friendsReelsJson = friends.toJson(),
+            settingsLoadFailed = false,
         )
+        preferences.applySnapshot(next)
+        PolicySnapshotSync.publish(next)
     }
 
     suspend fun setSurfacePolicy(surfaceId: String, policy: Policy) = withContext(Dispatchers.IO) {
         val current = preferences.readSnapshot()
         val map = current.surfacePoliciesJson.fromJson().toMutableMap()
         map[surfaceId] = policy
-        preferences.applySnapshot(
-            current.copy(
-                presetId = PresetIds.CUSTOM,
-                surfacePoliciesJson = map.toJson(),
-            ),
+        val next = current.copy(
+            presetId = PresetIds.CUSTOM,
+            surfacePoliciesJson = map.toJson(),
         )
+        preferences.applySnapshot(next)
+        PolicySnapshotSync.publish(next)
     }
 
     suspend fun setFriendsReels(appSurfaceId: String, policy: Policy) = withContext(Dispatchers.IO) {
@@ -50,18 +50,19 @@ class PolicyRepository(
         val map = current.friendsReelsJson.fromJson().toMutableMap()
         val stored = if (policy == Policy.OPEN_ONLY) Policy.ALLOW else policy
         map[appSurfaceId] = stored
-        preferences.applySnapshot(
-            current.copy(
-                presetId = PresetIds.CUSTOM,
-                friendsReelsJson = map.toJson(),
-            ),
+        val next = current.copy(
+            presetId = PresetIds.CUSTOM,
+            friendsReelsJson = map.toJson(),
         )
+        preferences.applySnapshot(next)
+        PolicySnapshotSync.publish(next)
     }
 
     suspend fun patchSettings(transform: (SettingsSnapshot) -> SettingsSnapshot) = withContext(Dispatchers.IO) {
         val current = preferences.readSnapshot()
-        preferences.applySnapshot(transform(current))
-        PolicySnapshotSync.refresh(preferences)
+        val next = transform(current)
+        preferences.applySnapshot(next)
+        PolicySnapshotSync.publish(next)
     }
 
     suspend fun seedBalancedIfNeeded() {
@@ -85,13 +86,5 @@ class PolicyRepository(
         return obj.toString()
     }
 
-    private fun String.fromJson(): Map<String, Policy> {
-        if (isBlank() || this == "{}") return emptyMap()
-        val obj = JSONObject(this)
-        val out = mutableMapOf<String, Policy>()
-        obj.keys().forEach { key ->
-            out[key] = Policy.valueOf(obj.getString(key))
-        }
-        return out
-    }
+    private fun String.fromJson(): Map<String, Policy> = StoredPolicyJson.parseMap(this)
 }

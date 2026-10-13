@@ -17,7 +17,6 @@ data class RuntimePolicySnapshot(
     val breakDayKey: String,
     val breakUntilEpochMs: Long?,
     val gateMinutes: Int,
-    val gateHoldSeconds: Int,
     val passes: List<Pair<String, Long>>,
 )
 
@@ -37,7 +36,6 @@ object PolicySnapshotHolder {
             breakDayKey = "",
             breakUntilEpochMs = null,
             gateMinutes = 10,
-            gateHoldSeconds = 3,
             passes = emptyList(),
         ),
     )

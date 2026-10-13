@@ -4,7 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import app.quiet.QuietApplication
-import app.quiet.data.policy.EnforcementStateRepository
+import app.quiet.data.policy.EnforcementMemorySynchronizer
 import app.quiet.data.policy.PolicySnapshotHolder
 import app.quiet.snapshot.SnapshotCapture
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +28,7 @@ class QuietAccessibilityService : AccessibilityService() {
     private var sheetTimeoutJob: Job? = null
     private var debounceJob: Job? = null
     private val confirmingWalkHolder = ConfirmingWalkHolder()
+    private val enforcementMemorySync = EnforcementMemorySynchronizer()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -67,10 +68,12 @@ class QuietAccessibilityService : AccessibilityService() {
                         onBreak = {
                             scope.launch(Dispatchers.IO) {
                                 val app = application as QuietApplication
-                                orchestrator.memory = app.enforcementStateRepository.startBreak(
-                                    orchestrator.memory,
+                                val current = enforcementMemorySync.readMemory { orchestrator.memory }
+                                val updated = app.enforcementStateRepository.startBreak(
+                                    current,
                                     System.currentTimeMillis(),
                                 )
+                                enforcementMemorySync.commitUpdated({ orchestrator.memory = it }, updated)
                                 withContext(Dispatchers.Main) {
                                     overlay.dismiss()
                                     orchestrator.sheetShownForSurface = null
@@ -92,12 +95,14 @@ class QuietAccessibilityService : AccessibilityService() {
                                 val app = application as QuietApplication
                                 val minutes = orchestrator.policySnapshot.gateMinutes
                                 val now = System.currentTimeMillis()
-                                orchestrator.memory = app.enforcementStateRepository.grantGatePass(
+                                val current = enforcementMemorySync.readMemory { orchestrator.memory }
+                                val updated = app.enforcementStateRepository.grantGatePass(
                                     req.surfaceId,
                                     minutes,
-                                    orchestrator.memory,
+                                    current,
                                     now,
                                 )
+                                enforcementMemorySync.commitUpdated({ orchestrator.memory = it }, updated)
                                 logEffect(
                                     OrchestratorEffects(logAction = "GATE_CONFIRMED"),
                                 )
@@ -144,7 +149,7 @@ class QuietAccessibilityService : AccessibilityService() {
                 },
             ),
         )
-        syncPolicy()
+        syncPolicyFromHolder()
         startHeartbeat()
     }
 
@@ -168,7 +173,7 @@ class QuietAccessibilityService : AccessibilityService() {
         debounceJob?.cancel()
         debounceJob = scope.launch {
             delay(QuietTiming.DEBOUNCE_MS)
-            syncMemoryFromHolder()
+            syncPolicyFromHolder()
             val fx = engine.runDebouncedWalk(packageName) ?: return@launch
             logEffect(fx)
             confirmingWalkHolder.release(::recycleSafe)
@@ -225,7 +230,7 @@ class QuietAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    private fun syncPolicy() {
+    private fun syncPolicyFromHolder() {
         val snap = PolicySnapshotHolder.get()
         orchestrator.policyLoaded = snap.loaded
         orchestrator.policySnapshot = PolicyView(
@@ -237,16 +242,9 @@ class QuietAccessibilityService : AccessibilityService() {
     }
 
     private fun syncMemoryFromHolder() {
-        val persisted = EnforcementStateRepository.memoryFromRuntime(PolicySnapshotHolder.get())
-        orchestrator.memory = orchestrator.memory.copy(
-            passes = persisted.passes,
-            quietHoursEnabled = persisted.quietHoursEnabled,
-            quietHoursStartMinutes = persisted.quietHoursStartMinutes,
-            quietHoursEndMinutes = persisted.quietHoursEndMinutes,
-            breaksRemainingToday = persisted.breaksRemainingToday,
-            breakAllowancePerDay = persisted.breakAllowancePerDay,
-            breakDayKey = persisted.breakDayKey,
-            breakUntilEpochMs = persisted.breakUntilEpochMs,
+        enforcementMemorySync.mergeFromHolder(
+            getMemory = { orchestrator.memory },
+            setMemory = { orchestrator.memory = it },
         )
     }
 

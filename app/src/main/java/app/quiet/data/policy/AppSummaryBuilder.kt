@@ -38,9 +38,5 @@ object AppSummaryBuilder {
             .ifBlank { "Other surfaces not detected yet" }
     }
 
-    private fun parsePolicies(json: String): Map<String, Policy> {
-        if (json.isBlank() || json == "{}") return emptyMap()
-        val obj = org.json.JSONObject(json)
-        return obj.keys().asSequence().associateWith { Policy.valueOf(obj.getString(it)) }
-    }
+    private fun parsePolicies(json: String): Map<String, Policy> = StoredPolicyJson.parseMap(json)
 }
