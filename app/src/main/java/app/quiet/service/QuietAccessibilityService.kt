@@ -68,11 +68,12 @@ class QuietAccessibilityService : AccessibilityService() {
                         onBreak = {
                             scope.launch(Dispatchers.IO) {
                                 val app = application as QuietApplication
+                                val current = enforcementMemorySync.readMemory { orchestrator.memory }
                                 val updated = app.enforcementStateRepository.startBreak(
-                                    orchestrator.memory,
+                                    current,
                                     System.currentTimeMillis(),
                                 )
-                                orchestrator.memory = enforcementMemorySync.applyUpdated(updated)
+                                enforcementMemorySync.commitUpdated({ orchestrator.memory = it }, updated)
                                 withContext(Dispatchers.Main) {
                                     overlay.dismiss()
                                     orchestrator.sheetShownForSurface = null
@@ -94,13 +95,14 @@ class QuietAccessibilityService : AccessibilityService() {
                                 val app = application as QuietApplication
                                 val minutes = orchestrator.policySnapshot.gateMinutes
                                 val now = System.currentTimeMillis()
+                                val current = enforcementMemorySync.readMemory { orchestrator.memory }
                                 val updated = app.enforcementStateRepository.grantGatePass(
                                     req.surfaceId,
                                     minutes,
-                                    orchestrator.memory,
+                                    current,
                                     now,
                                 )
-                                orchestrator.memory = enforcementMemorySync.applyUpdated(updated)
+                                enforcementMemorySync.commitUpdated({ orchestrator.memory = it }, updated)
                                 logEffect(
                                     OrchestratorEffects(logAction = "GATE_CONFIRMED"),
                                 )
@@ -240,7 +242,10 @@ class QuietAccessibilityService : AccessibilityService() {
     }
 
     private fun syncMemoryFromHolder() {
-        orchestrator.memory = enforcementMemorySync.mergeFromHolder(orchestrator.memory)
+        enforcementMemorySync.mergeFromHolder(
+            getMemory = { orchestrator.memory },
+            setMemory = { orchestrator.memory = it },
+        )
     }
 
     private fun startHeartbeat() {

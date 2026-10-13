@@ -9,11 +9,43 @@ import quiet.core.enforce.EnforcementMemory
 class EnforcementMemorySynchronizer {
     private val lock = Any()
 
-    fun <T> withLock(block: () -> T): T = synchronized(lock, block)
+    fun readMemory(getMemory: () -> EnforcementMemory): EnforcementMemory =
+        synchronized(lock) { getMemory() }
 
-    fun mergeFromHolder(current: EnforcementMemory): EnforcementMemory = withLock {
+    fun mergeFromHolder(
+        getMemory: () -> EnforcementMemory,
+        setMemory: (EnforcementMemory) -> Unit,
+    ) {
+        synchronized(lock) {
+            setMemory(mergeComputation(getMemory()))
+        }
+    }
+
+    fun commitUpdated(
+        setMemory: (EnforcementMemory) -> Unit,
+        updated: EnforcementMemory,
+    ) {
+        synchronized(lock) {
+            setMemory(updated)
+        }
+    }
+
+    /**
+     * Test-only: reproduces assigning merged memory after releasing the lock.
+     */
+    internal fun mergeFromHolderBroken(
+        getMemory: () -> EnforcementMemory,
+        setMemory: (EnforcementMemory) -> Unit,
+        betweenLockAndAssign: () -> Unit,
+    ) {
+        val merged = synchronized(lock) { mergeComputation(getMemory()) }
+        betweenLockAndAssign()
+        setMemory(merged)
+    }
+
+    private fun mergeComputation(current: EnforcementMemory): EnforcementMemory {
         val persisted = EnforcementStateRepository.memoryFromRuntime(PolicySnapshotHolder.get())
-        current.copy(
+        return current.copy(
             passes = persisted.passes,
             quietHoursEnabled = persisted.quietHoursEnabled,
             quietHoursStartMinutes = persisted.quietHoursStartMinutes,
@@ -24,6 +56,4 @@ class EnforcementMemorySynchronizer {
             breakUntilEpochMs = persisted.breakUntilEpochMs,
         )
     }
-
-    fun applyUpdated(updated: EnforcementMemory): EnforcementMemory = withLock { updated }
 }

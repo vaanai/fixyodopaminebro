@@ -15,9 +15,13 @@ object StoredPolicyJson {
 
     fun parseMap(json: String, entryDefault: Policy = Policy.ALLOW): Map<String, Policy> {
         if (json.isBlank() || json == "{}") return emptyMap()
-        val obj = JSONObject(json)
-        return obj.keys().asSequence().associateWith { key ->
-            parseValue(obj.getString(key), entryDefault)
+        return try {
+            val obj = JSONObject(json)
+            obj.keys().asSequence().associateWith { key ->
+                parseValue(obj.getString(key), entryDefault)
+            }
+        } catch (_: Exception) {
+            emptyMap()
         }
     }
 }

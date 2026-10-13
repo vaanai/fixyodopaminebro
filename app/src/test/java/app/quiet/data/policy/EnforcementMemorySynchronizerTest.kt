@@ -2,6 +2,7 @@ package app.quiet.data.policy
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import quiet.core.enforce.EnforcementMemory
@@ -20,7 +21,33 @@ class EnforcementMemorySynchronizerTest {
     }
 
     @Test
+    fun assignOutsideLock_losesPassPublishedBetweenMergeAndAssign() {
+        val slot = MemorySlot(EnforcementMemory())
+        publishHolder(breakUntil = 42L, passes = emptyList())
+
+        synchronizer.mergeFromHolderBroken(
+            getMemory = { slot.memory },
+            setMemory = { slot.memory = it },
+            betweenLockAndAssign = {
+                synchronizer.commitUpdated(
+                    setMemory = { slot.memory = it },
+                    updated = EnforcementMemory(
+                        passes = listOf(SurfacePass("instagram.reels", 9_999L)),
+                        breakUntilEpochMs = 42L,
+                        breaksRemainingToday = 2,
+                        breakAllowancePerDay = 3,
+                        breakDayKey = "day",
+                    ),
+                )
+            },
+        )
+
+        assertTrue(slot.memory.passes.isEmpty())
+    }
+
+    @Test
     fun concurrentHeartbeatMergeAndPassPublish_doNotDropEachOther() {
+        val slot = MemorySlot(EnforcementMemory())
         val executor = Executors.newFixedThreadPool(4)
         val rounds = 40
         val done = CountDownLatch(rounds * 2)
@@ -29,7 +56,10 @@ class EnforcementMemorySynchronizerTest {
         repeat(rounds) {
             executor.execute {
                 try {
-                    synchronizer.mergeFromHolder(EnforcementMemory())
+                    synchronizer.mergeFromHolder(
+                        getMemory = { slot.memory },
+                        setMemory = { slot.memory = it },
+                    )
                 } catch (e: Throwable) {
                     errors.add(e)
                 } finally {
@@ -42,8 +72,9 @@ class EnforcementMemorySynchronizerTest {
                         breakUntil = 42L,
                         passes = listOf("instagram.reels" to 9_999L),
                     )
-                    synchronizer.applyUpdated(
-                        EnforcementMemory(
+                    synchronizer.commitUpdated(
+                        setMemory = { slot.memory = it },
+                        updated = EnforcementMemory(
                             passes = listOf(SurfacePass("instagram.reels", 9_999L)),
                             breakUntilEpochMs = 42L,
                             breaksRemainingToday = 2,
@@ -63,9 +94,12 @@ class EnforcementMemorySynchronizerTest {
         executor.shutdown()
         assert(errors.isEmpty())
 
-        val merged = synchronizer.mergeFromHolder(EnforcementMemory())
-        assertEquals(42L, merged.breakUntilEpochMs)
-        val pass = merged.passes.firstOrNull { it.surfaceId == "instagram.reels" }
+        synchronizer.mergeFromHolder(
+            getMemory = { slot.memory },
+            setMemory = { slot.memory = it },
+        )
+        assertEquals(42L, slot.memory.breakUntilEpochMs)
+        val pass = slot.memory.passes.firstOrNull { it.surfaceId == "instagram.reels" }
         assertNotNull(pass)
         assertEquals(9_999L, pass!!.untilEpochMs)
     }
@@ -90,4 +124,6 @@ class EnforcementMemorySynchronizerTest {
             ),
         )
     }
+
+    private class MemorySlot(var memory: EnforcementMemory)
 }

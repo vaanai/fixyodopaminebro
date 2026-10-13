@@ -15,4 +15,9 @@ class StoredPolicyJsonTest {
     fun parseValue_usesSurfaceDefaultWhenUnknown() {
         assertEquals(Policy.BLOCK, StoredPolicyJson.parseValue("bogus", Policy.BLOCK))
     }
+
+    @Test
+    fun nonJsonPolicyBlob_doesNotThrow() {
+        assertEquals(emptyMap<String, Policy>(), StoredPolicyJson.parseMap("not-json"))
+    }
 }
