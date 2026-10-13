@@ -20,7 +20,6 @@ class AppSummaryBuilderTest {
             breakDayKey = "",
             breakUntilEpochMs = null,
             gateMinutes = 10,
-            gateHoldSeconds = 3,
             heartbeatEpochMs = null,
             unknownSurfaceCount = 0,
             onboardingComplete = true,

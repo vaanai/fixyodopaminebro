@@ -7,8 +7,6 @@ import org.json.JSONObject
 import quiet.core.enforce.EnforcementMemory
 import quiet.core.enforce.Enforcer
 import quiet.core.enforce.SurfacePass
-import quiet.core.rules.Policy
-
 class EnforcementStateRepository(
     private val preferences: QuietPreferences,
 ) {
@@ -22,7 +20,7 @@ class EnforcementStateRepository(
             breaksPerDay = memory.breakAllowancePerDay,
         )
         preferences.applySnapshot(updated)
-        PolicySnapshotHolder.update(updated.toRuntimeSnapshot())
+        PolicySnapshotSync.publish(updated)
     }
 
     suspend fun grantGatePass(surfaceId: String, minutes: Int, memory: EnforcementMemory, nowMs: Long): EnforcementMemory {
@@ -65,7 +63,7 @@ class EnforcementStateRepository(
         )
 
         fun memoryFromSnapshot(snap: SettingsSnapshot): EnforcementMemory = EnforcementMemory(
-            passes = parsePasses(snap.passesJson).map { SurfacePass(it.first, it.second) },
+            passes = RuntimeSnapshotMapper.parsePasses(snap.passesJson).map { SurfacePass(it.first, it.second) },
             breakUntilEpochMs = snap.breakUntilEpochMs,
             breaksRemainingToday = snap.breaksRemainingToday,
             breakAllowancePerDay = snap.breaksPerDay,
@@ -87,41 +85,7 @@ class EnforcementStateRepository(
             return arr.toString()
         }
 
-        fun parsePasses(json: String): List<Pair<String, Long>> {
-            if (json.isBlank() || json == "[]") return emptyList()
-            val arr = JSONArray(json)
-            val out = mutableListOf<Pair<String, Long>>()
-            for (i in 0 until arr.length()) {
-                val item = arr.getJSONObject(i)
-                out.add(item.getString("surfaceId") to item.getLong("until"))
-            }
-            return out
-        }
-
+        fun parsePasses(json: String): List<Pair<String, Long>> =
+            RuntimeSnapshotMapper.parsePasses(json)
     }
-}
-
-private fun SettingsSnapshot.toRuntimeSnapshot(): RuntimePolicySnapshot =
-    RuntimePolicySnapshot(
-        loaded = !settingsLoadFailed && surfacePoliciesJson != "{}",
-        settingsLoadFailed = settingsLoadFailed,
-        presetId = presetId,
-        surfacePolicies = parsePolicyMap(surfacePoliciesJson),
-        friendsReels = parsePolicyMap(friendsReelsJson),
-        quietHoursEnabled = quietHoursEnabled,
-        quietHoursStartMinutes = quietHoursStartMinutes,
-        quietHoursEndMinutes = quietHoursEndMinutes,
-        breaksPerDay = breaksPerDay,
-        breaksRemainingToday = breaksRemainingToday,
-        breakDayKey = breakDayKey,
-        breakUntilEpochMs = breakUntilEpochMs,
-        gateMinutes = gateMinutes,
-        gateHoldSeconds = gateHoldSeconds,
-        passes = EnforcementStateRepository.parsePasses(passesJson),
-    )
-
-private fun parsePolicyMap(json: String): Map<String, Policy> {
-    if (json.isBlank() || json == "{}") return emptyMap()
-    val obj = JSONObject(json)
-    return obj.keys().asSequence().associateWith { Policy.valueOf(obj.getString(it)) }
 }
