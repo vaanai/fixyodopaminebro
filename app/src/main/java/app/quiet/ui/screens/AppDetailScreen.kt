@@ -54,6 +54,7 @@ fun AppDetailScreen(appId: String, onBack: () -> Unit) {
                         options = listOf(Policy.ALLOW, Policy.GATE, Policy.BLOCK),
                         onChange = { vm.setFeedPolicy(row.rule.fullId, it) },
                         showDivider = index < state.feedSurfaces.lastIndex,
+                        segmentEnabled = row.rule.enforce,
                     )
                 }
             }

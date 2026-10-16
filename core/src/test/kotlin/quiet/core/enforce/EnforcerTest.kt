@@ -1,6 +1,7 @@
 package quiet.core.enforce
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import quiet.core.QuietTiming
@@ -180,6 +181,19 @@ class EnforcerTest {
         clock.advance(10 * 60_000L + 1)
         val after = Enforcer.decide(obs(policy = Policy.GATE), memory, clock)
         assertEquals(EnforcementAction.ShowGate, after)
+    }
+
+    @Test
+    fun syncBreakDayRefillsWithoutStartingBreak() {
+        val clock = FakeClock(atHour(10), zone)
+        val memory = EnforcementMemory(
+            breaksRemainingToday = 0,
+            breakAllowancePerDay = 3,
+            breakDayKey = "2025-12-31",
+        )
+        val updated = Enforcer.syncBreakDay(memory, clock)
+        assertEquals(3, updated.breaksRemainingToday)
+        assertNull(updated.breakUntilEpochMs)
     }
 
     @Test

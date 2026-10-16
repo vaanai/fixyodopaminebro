@@ -45,6 +45,8 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun refresh() {
+        val now = System.currentTimeMillis()
+        quietApp.enforcementStateRepository.refreshBreakAllowanceIfNewDay(now)
         val prefs = quietApp.preferences.readSnapshot()
         val serviceOn = isAccessibilityEnabled()
         val stale = prefs.heartbeatEpochMs?.let {
@@ -56,7 +58,6 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         val recent = quietApp.eventRepository.recent(5).map { event ->
             RecentEventFormatter.formatLine(event, prefs.gateMinutes)
         }
-        val now = System.currentTimeMillis()
         val breakActive = prefs.breakUntilEpochMs?.let { it > now } == true
         val breakUntilLabel = prefs.breakUntilEpochMs?.takeIf { it > now }?.let { until ->
             DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)

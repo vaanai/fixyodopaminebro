@@ -293,6 +293,7 @@ class QuietAccessibilityService : AccessibilityService() {
             val app = application as QuietApplication
             while (heartbeatRunning.get()) {
                 app.preferences.writeHeartbeat(System.currentTimeMillis())
+                app.enforcementStateRepository.refreshBreakAllowanceIfNewDay(System.currentTimeMillis())
                 withContext(Dispatchers.Main) {
                     syncPolicyFromHolder()
                 }

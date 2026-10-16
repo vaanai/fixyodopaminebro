@@ -115,19 +115,25 @@ object Enforcer {
         }
     }
 
+    fun syncBreakDay(memory: EnforcementMemory, clock: Clock): EnforcementMemory {
+        val dayKey = LocalDate.ofInstant(Instant.ofEpochMilli(clock.millis()), clock.zone()).toString()
+        if (memory.breakDayKey == dayKey) return memory
+        return memory.copy(
+            breaksRemainingToday = memory.breakAllowancePerDay,
+            breakDayKey = dayKey,
+            breakUntilEpochMs = null,
+        )
+    }
+
     fun startBreak(memory: EnforcementMemory, clock: Clock): EnforcementMemory {
         val dayKey = LocalDate.ofInstant(Instant.ofEpochMilli(clock.millis()), clock.zone()).toString()
-        val remaining = if (memory.breakDayKey != dayKey) {
-            memory.breakAllowancePerDay
-        } else {
-            memory.breaksRemainingToday
-        }
-        if (remaining <= 0) return memory
-        return memory.copy(
+        val rolled = syncBreakDay(memory, clock)
+        val remaining = rolled.breaksRemainingToday
+        if (remaining <= 0) return rolled
+        return rolled.copy(
             breakUntilEpochMs = clock.millis() + QuietTiming.BREAK_DURATION_MS,
             breaksRemainingToday = remaining - 1,
             breakDayKey = dayKey,
-            breakAllowancePerDay = memory.breakAllowancePerDay,
         )
     }
 

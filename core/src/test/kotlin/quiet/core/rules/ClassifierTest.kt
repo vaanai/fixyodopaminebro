@@ -90,6 +90,37 @@ class ClassifierTest {
     }
 
     @Test
+    fun reelsWithSendButton_stillClassifiedAsReels() {
+        val result = SurfaceClassifier.classify(
+            SyntheticTrees.instagramReelsWithSendButton(),
+            instagram,
+            truncated = false,
+        )
+        assertEquals("instagram.reels", result.surfaceId)
+    }
+
+    @Test
+    fun tiktokThreadWithForYouSelected_isUnknownNotFeed() {
+        val result = SurfaceClassifier.classify(
+            SyntheticTrees.tiktokThreadWithForYouTabSelected(),
+            tiktok,
+            truncated = false,
+        )
+        assertTrue(result.isUnknown)
+        assertTrue(result.surfaceId != "tiktok.for_you")
+    }
+
+    @Test
+    fun tiktokForYouWithSend_stillClassifiedAsForYou() {
+        val result = SurfaceClassifier.classify(
+            SyntheticTrees.tiktokForYouWithSendButton(),
+            tiktok,
+            truncated = false,
+        )
+        assertEquals("tiktok.for_you", result.surfaceId)
+    }
+
+    @Test
     fun threadNoTabBarNeverFeed() {
         val result = SurfaceClassifier.classify(SyntheticTrees.threadNoTabBar(), instagram, truncated = false)
         assertTrue(result.surfaceId == "instagram.dm_thread" || result.isUnknown)

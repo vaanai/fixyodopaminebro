@@ -18,19 +18,21 @@ class TargetDebounceRunner(
     private val onFailure: () -> Unit,
 ) {
     private var job: Job? = null
+    private var walkPackage: String? = null
 
     fun onEvent(packageName: String) {
+        walkPackage = packageName
         if (job?.isActive == true) return
         job = scope.launch {
             try {
-                debounceLoop(packageName)
+                debounceLoop()
             } catch (_: Throwable) {
                 onFailure()
             }
         }
     }
 
-    internal suspend fun debounceLoop(packageName: String) {
+    internal suspend fun debounceLoop() {
         while (true) {
             val wait = orchestrator.debounce.windowOpenUntil - clock()
             if (wait > 0) {
@@ -40,6 +42,7 @@ class TargetDebounceRunner(
                 if (!orchestrator.debounce.dirty) break
                 continue
             }
+            val packageName = walkPackage ?: break
             syncPolicy()
             runWalk(packageName)
             onAfterWalk()
