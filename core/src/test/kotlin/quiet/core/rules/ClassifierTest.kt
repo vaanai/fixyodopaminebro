@@ -23,6 +23,18 @@ class ClassifierTest {
     }
 
     @Test
+    fun nodeListIsDm() {
+        assertSurface(instagram, SyntheticTrees.instagramDmInbox(), "instagram.dm_inbox")
+        assertSurface(tiktok, SyntheticTrees.tiktokDmThread(), "tiktok.dm_thread")
+    }
+
+    @Test
+    fun nodeListIsFeed() {
+        assertSurface(instagram, SyntheticTrees.instagramHomeFeed(), "instagram.home_feed")
+        assertSurface(tiktok, SyntheticTrees.tiktokForYou(), "tiktok.for_you")
+    }
+
+    @Test
     fun syntheticFixturesClassify() {
         assertSurface(instagram, SyntheticTrees.instagramDmInbox(), "instagram.dm_inbox")
         assertSurface(instagram, SyntheticTrees.instagramDmThread(), "instagram.dm_thread")

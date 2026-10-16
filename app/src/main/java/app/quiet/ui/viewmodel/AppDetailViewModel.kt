@@ -60,8 +60,7 @@ class AppDetailViewModel(app: Application, private val appId: String) : AndroidV
                 feedSurfaces = feed,
                 friendsSurface = friends?.let {
                     val policy = repo.policyForSurface(snap, it.fullId, it.defaultPolicy)
-                    val mapped = if (policy == Policy.OPEN_ONLY) Policy.ALLOW else policy
-                    SurfaceRowState(it, mapped, QuietCopy.FRIENDS_REELS_SUBLABEL)
+                    SurfaceRowState(it, policy, QuietCopy.FRIENDS_REELS_SUBLABEL)
                 },
             )
         }

@@ -14,13 +14,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import app.quiet.ui.components.QuietAlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -158,6 +157,21 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
                     selected = state.gateMinutes,
                     onSelect = vm::setGateMinutes,
                 )
+                GateSettingBlock(
+                    title = "Hold time",
+                    sublabel = "Seconds",
+                    options = listOf(2, 3, 5),
+                    selected = state.holdSeconds,
+                    onSelect = vm::setHoldSeconds,
+                )
+            }
+
+            SectionLabel("Appearance")
+            QuietSurfaceGroup {
+                AppearanceBlock(
+                    selected = state.appearance,
+                    onSelect = vm::setAppearance,
+                )
             }
 
             SectionLabel("Permissions")
@@ -272,21 +286,49 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
         }
     }
     if (deleteAllConfirm) {
-        AlertDialog(
-            onDismissRequest = { deleteAllConfirm = false },
-            title = { Text("Delete all data?") },
-            text = { Text("Events, library, and settings on this device will be removed.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    vm.deleteAll()
-                    deleteAllConfirm = false
-                }) { Text("Delete") }
+        QuietAlertDialog(
+            title = "Delete all data?",
+            body = "Events, library, and settings on this device will be removed.",
+            confirmLabel = "Delete",
+            dismissLabel = "Cancel",
+            onConfirm = {
+                vm.deleteAll()
+                deleteAllConfirm = false
             },
-            dismissButton = {
-                TextButton(onClick = { deleteAllConfirm = false }) { Text("Cancel") }
-            },
+            onDismiss = { deleteAllConfirm = false },
         )
     }
+}
+
+@Composable
+private fun AppearanceBlock(selected: String, onSelect: (String) -> Unit) {
+    val spacing = QuietThemeAccessor.spacing
+    val typography = QuietThemeAccessor.typography
+    val colors = QuietThemeAccessor.colors
+    val options = listOf("system", "dark", "light")
+    Text(
+        text = "Theme",
+        style = typography.title,
+        color = colors.textPrimary,
+        modifier = Modifier.padding(start = spacing.space4, end = spacing.space4, top = spacing.space4),
+    )
+    Text(
+        text = "System, dark, or light",
+        style = typography.label,
+        color = colors.textSecondary,
+        modifier = Modifier.padding(start = spacing.space4, end = spacing.space4, bottom = spacing.space2),
+    )
+    IntSegment(
+        options = options.indices.toList(),
+        selected = options.indexOf(selected).coerceAtLeast(0),
+        onSelect = { onSelect(options[it]) },
+        labelFor = { options[it].replaceFirstChar { c -> c.uppercase() } },
+        modifier = Modifier.padding(
+            start = spacing.space4,
+            end = spacing.space4,
+            bottom = spacing.space4,
+        ),
+    )
 }
 
 @Composable

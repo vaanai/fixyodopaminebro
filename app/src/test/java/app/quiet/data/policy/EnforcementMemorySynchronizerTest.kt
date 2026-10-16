@@ -120,6 +120,7 @@ class EnforcementMemorySynchronizerTest {
                 breakDayKey = "day",
                 breakUntilEpochMs = breakUntil,
                 gateMinutes = 10,
+                holdSeconds = 3,
                 passes = passes,
             ),
         )

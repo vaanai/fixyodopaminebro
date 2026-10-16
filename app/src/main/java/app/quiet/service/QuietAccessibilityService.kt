@@ -235,6 +235,7 @@ class QuietAccessibilityService : AccessibilityService() {
         orchestrator.policyLoaded = snap.loaded
         orchestrator.policySnapshot = PolicyView(
             gateMinutes = snap.gateMinutes,
+            holdSeconds = snap.holdSeconds,
             policies = snap.surfacePolicies,
             friends = snap.friendsReels,
         )

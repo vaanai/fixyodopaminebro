@@ -9,11 +9,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material3.AlertDialog
+import app.quiet.ui.components.QuietAlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -155,16 +154,16 @@ fun LibraryScreen(vm: LibraryViewModel) {
         )
     }
     deleteConfirm?.let { item ->
-        AlertDialog(
-            onDismissRequest = { deleteConfirm = null },
-            title = { Text("Delete this item?") },
-            text = { Text("This can't be undone.") },
-            confirmButton = {
-                TextButton(onClick = { vm.delete(item); deleteConfirm = null }) { Text("Delete") }
+        QuietAlertDialog(
+            title = "Delete this item?",
+            body = "This can't be undone.",
+            confirmLabel = "Delete",
+            dismissLabel = "Cancel",
+            onConfirm = {
+                vm.delete(item)
+                deleteConfirm = null
             },
-            dismissButton = {
-                TextButton(onClick = { deleteConfirm = null }) { Text("Cancel") }
-            },
+            onDismiss = { deleteConfirm = null },
         )
     }
 }

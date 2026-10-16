@@ -62,9 +62,4 @@ fun PolicySegment(
     }
 }
 
-private fun label(policy: Policy): String = when (policy) {
-    Policy.ALLOW -> "Allow"
-    Policy.GATE -> "Gate"
-    Policy.BLOCK -> "Block"
-    Policy.OPEN_ONLY -> "Allow"
-}
+private fun label(policy: Policy): String = policySegmentLabel(policy)

@@ -27,6 +27,7 @@ class QuietPreferences(private val context: Context) {
     private val breakDayKey = stringPreferencesKey("break_day_key")
     private val breakUntil = longPreferencesKey("break_until")
     private val gateMinutes = intPreferencesKey("gate_minutes")
+    private val holdSeconds = intPreferencesKey("hold_seconds")
     private val heartbeat = longPreferencesKey("heartbeat")
     private val unknownCount = intPreferencesKey("unknown_count")
     private val onboardingDone = booleanPreferencesKey("onboarding_done")
@@ -74,6 +75,7 @@ class QuietPreferences(private val context: Context) {
         breakDayKey = this[breakDayKey] ?: "",
         breakUntilEpochMs = this[breakUntil],
         gateMinutes = this[gateMinutes] ?: 10,
+        holdSeconds = (this[holdSeconds] ?: 3).coerceIn(2, 5),
         heartbeatEpochMs = this[heartbeat],
         unknownSurfaceCount = this[unknownCount] ?: 0,
         onboardingComplete = this[onboardingDone] ?: false,
@@ -95,6 +97,7 @@ class QuietPreferences(private val context: Context) {
             prefs[breakDayKey] = seed.breakDayKey
             seed.breakUntilEpochMs?.let { prefs[breakUntil] = it } ?: prefs.remove(breakUntil)
             prefs[gateMinutes] = seed.gateMinutes
+            prefs[holdSeconds] = seed.holdSeconds.coerceIn(2, 5)
             seed.heartbeatEpochMs?.let { prefs[heartbeat] = it }
             prefs[unknownCount] = seed.unknownSurfaceCount
             prefs[onboardingDone] = seed.onboardingComplete
@@ -122,6 +125,7 @@ data class SettingsSnapshot(
     val breakDayKey: String,
     val breakUntilEpochMs: Long?,
     val gateMinutes: Int,
+    val holdSeconds: Int,
     val heartbeatEpochMs: Long?,
     val unknownSurfaceCount: Int,
     val onboardingComplete: Boolean,

@@ -177,7 +177,7 @@ class ServiceOrchestrator(
                         observation.surfaceId!!,
                         surfaceLabel,
                         policySnapshot.gateMinutes,
-                        QuietTiming.GATE_HOLD_MS,
+                        policySnapshot.holdMs(),
                     ),
                     logAction = "GATE_SHOWN",
                 )
@@ -216,13 +216,16 @@ class ServiceOrchestrator(
 
 data class PolicyView(
     val gateMinutes: Int,
+    val holdSeconds: Int = 3,
     val policies: Map<String, Policy>,
     val friends: Map<String, Policy>,
 ) {
+    fun holdMs(): Long = holdSeconds.coerceIn(2, 5) * 1_000L
+
     fun policyFor(surfaceId: String, default: Policy): Policy =
         friends[surfaceId] ?: policies[surfaceId] ?: default
 
     companion object {
-        fun allowAll() = PolicyView(gateMinutes = 10, policies = emptyMap(), friends = emptyMap())
+        fun allowAll() = PolicyView(gateMinutes = 10, holdSeconds = 3, policies = emptyMap(), friends = emptyMap())
     }
 }

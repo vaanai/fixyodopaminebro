@@ -27,6 +27,8 @@ data class SettingsUiState(
     val quietHoursEndLabel: String = "07:00",
     val breaksPerDay: Int = 3,
     val gateMinutes: Int = 10,
+    val holdSeconds: Int = 3,
+    val appearance: String = "system",
     val accessibilityOn: Boolean = false,
     val batteryStatus: String = "Optimized",
     val unknownCount: Int = 0,
@@ -64,6 +66,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 quietHoursEndLabel = formatMinutes(snap.quietHoursEndMinutes),
                 breaksPerDay = snap.breaksPerDay,
                 gateMinutes = snap.gateMinutes,
+                holdSeconds = snap.holdSeconds,
+                appearance = snap.appearance,
                 accessibilityOn = isAccessibilityEnabled(),
                 batteryStatus = batteryLabel(),
                 unknownCount = snap.unknownSurfaceCount,
@@ -110,6 +114,21 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setGateMinutes(minutes: Int) {
         viewModelScope.launch {
             quietApp.policyRepository.patchSettings { it.copy(gateMinutes = minutes) }
+            reload()
+        }
+    }
+
+    fun setHoldSeconds(seconds: Int) {
+        viewModelScope.launch {
+            val clamped = seconds.coerceIn(2, 5)
+            quietApp.policyRepository.patchSettings { it.copy(holdSeconds = clamped) }
+            reload()
+        }
+    }
+
+    fun setAppearance(mode: String) {
+        viewModelScope.launch {
+            quietApp.policyRepository.patchSettings { it.copy(appearance = mode) }
             reload()
         }
     }

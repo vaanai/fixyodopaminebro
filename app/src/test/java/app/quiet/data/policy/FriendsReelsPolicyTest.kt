@@ -14,13 +14,13 @@ import quiet.core.rules.Policy
 @Config(sdk = [28])
 class FriendsReelsPolicyTest {
     @Test
-    fun friendsAllowStoredAsAllow() {
+    fun friendsOpenOnlyStoredAsOpenOnly() {
         val app = ApplicationProvider.getApplicationContext<QuietApplication>()
         runBlocking {
-            app.policyRepository.setFriendsReels("instagram.dm_shared_reel", Policy.ALLOW)
+            app.policyRepository.setFriendsReels("instagram.dm_shared_reel", Policy.OPEN_ONLY)
             val snap = app.preferences.readSnapshot()
             val map = org.json.JSONObject(snap.friendsReelsJson)
-            assertEquals("ALLOW", map.getString("instagram.dm_shared_reel"))
+            assertEquals("OPEN_ONLY", map.getString("instagram.dm_shared_reel"))
         }
     }
 }
