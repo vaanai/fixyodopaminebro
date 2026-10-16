@@ -68,8 +68,10 @@ fun PresetPicker(selected: String, onSelect: (String) -> Unit, modifier: Modifie
         }
     }
     val helper = when (selected) {
-        PresetIds.CUSTOM -> "Individual surfaces are set on their own."
-        else -> QuietCopy.PRESET_HELPER_HONEST
+        PresetIds.STRICT -> QuietCopy.PRESET_HELPER_STRICT
+        PresetIds.LIGHT -> QuietCopy.PRESET_HELPER_LIGHT
+        PresetIds.CUSTOM -> QuietCopy.PRESET_HELPER_CUSTOM
+        else -> QuietCopy.PRESET_HELPER_BALANCED
     }
     Text(
         text = helper,

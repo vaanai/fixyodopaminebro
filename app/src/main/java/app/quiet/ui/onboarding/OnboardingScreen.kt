@@ -218,40 +218,41 @@ fun OnboardingScreen(vm: OnboardingViewModel, onDone: () -> Unit) {
                     }
                 }
             }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(spacing.space2),
-            ) {
-                val primaryLabel = when (state.step) {
-                    1 -> "Continue"
-                    2, 3 -> "Open settings"
-                    else -> "Go to Today"
-                }
-                QuietPrimaryButton(
-                    text = primaryLabel,
-                    onClick = {
-                        when (state.step) {
-                            1 -> vm.next()
-                            2 -> vm.openAccessibilitySettings()
-                            3 -> vm.openBatterySettings()
-                            else -> {
-                                vm.finish()
-                                onDone()
-                            }
-                        }
-                    },
-                )
-                if (state.step in 2..3) {
-                    QuietTextButton(text = "Not now", onClick = vm::next)
-                }
-                if (state.step == 4 && !state.accessibilityOn) {
-                    QuietTextButton(text = "Open settings", onClick = vm::openAccessibilitySettings, accent = true)
-                }
-                if (state.step == 4 && state.accessibilityOn && state.instagramInstalled) {
-                    QuietTextButton(text = "Open Instagram", onClick = vm::openInstagram)
-                }
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = spacing.space2),
+            verticalArrangement = Arrangement.spacedBy(spacing.space2),
+        ) {
+            val primaryLabel = when (state.step) {
+                1 -> "Continue"
+                2, 3 -> "Open settings"
+                else -> "Go to Today"
             }
-            Spacer(modifier = Modifier.height(spacing.space2))
+            QuietPrimaryButton(
+                text = primaryLabel,
+                onClick = {
+                    when (state.step) {
+                        1 -> vm.next()
+                        2 -> vm.openAccessibilitySettings()
+                        3 -> vm.openBatterySettings()
+                        else -> {
+                            vm.finish()
+                            onDone()
+                        }
+                    }
+                },
+            )
+            if (state.step in 2..3) {
+                QuietTextButton(text = "Not now", onClick = vm::next)
+            }
+            if (state.step == 4 && !state.accessibilityOn) {
+                QuietTextButton(text = "Open settings", onClick = vm::openAccessibilitySettings, accent = true)
+            }
+            if (state.step == 4 && state.accessibilityOn && state.instagramInstalled) {
+                QuietTextButton(text = "Open Instagram", onClick = vm::openInstagram)
+            }
         }
     }
 }

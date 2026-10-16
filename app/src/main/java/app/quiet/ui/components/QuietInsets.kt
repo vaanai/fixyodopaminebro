@@ -28,7 +28,6 @@ fun QuietScreenColumn(
         .fillMaxSize()
         .background(colors.background)
         .windowInsetsPadding(WindowInsets.statusBars)
-        .navigationBarsPadding()
         .padding(horizontal = spacing.space5)
         .padding(bottom = spacing.space3)
     if (scroll) {

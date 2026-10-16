@@ -38,6 +38,26 @@ fun LibraryEditSheet(
     onDelete: (() -> Unit)?,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+    ) {
+        LibraryEditSheetContent(
+            initial = initial,
+            onSave = onSave,
+            onDelete = onDelete,
+        )
+    }
+}
+
+@Composable
+fun LibraryEditSheetContent(
+    initial: LibraryItemEntity?,
+    onSave: (LibraryItemEntity) -> Unit,
+    onDelete: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
     val spacing = QuietThemeAccessor.spacing
     val type = QuietThemeAccessor.typography
     val colors = QuietThemeAccessor.colors
@@ -50,66 +70,60 @@ fun LibraryEditSheet(
     var rating by remember { mutableIntStateOf(initial?.rating ?: 0) }
     var notes by remember { mutableStateOf(initial?.notes ?: "") }
     val canSave = title.isNotBlank() && typeSel != null
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
+    Column(
+        modifier = modifier
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(spacing.space5),
     ) {
-        Column(
-            modifier = Modifier
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(spacing.space5),
-        ) {
-            Text(
-                text = if (initial == null) "Add item" else "Edit item",
-                style = type.headline,
-                color = colors.textPrimary,
-            )
-            QuietTextField(label = "Title", value = title, onValueChange = { title = it }, placeholder = "Title")
-            Text(text = "Type", style = type.label, color = colors.textSecondary, modifier = Modifier.padding(top = spacing.space4))
-            Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                listOf("Shows", "Movies", "Books", "Games").forEach { t ->
-                    FilterChip(text = t, selected = typeSel == t, onClick = { typeSel = t })
-                }
+        Text(
+            text = if (initial == null) "Add item" else "Edit item",
+            style = type.headline,
+            color = colors.textPrimary,
+        )
+        QuietTextField(label = "Title", value = title, onValueChange = { title = it }, placeholder = "Title")
+        Text(text = "Type", style = type.label, color = colors.textSecondary, modifier = Modifier.padding(top = spacing.space4))
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            listOf("Shows", "Movies", "Books", "Games").forEach { t ->
+                FilterChip(text = t, selected = typeSel == t, onClick = { typeSel = t })
             }
-            Text(text = "Status", style = type.label, color = colors.textSecondary, modifier = Modifier.padding(top = spacing.space4))
-            Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                listOf("Want", "Now", "Done", "Dropped").forEach { s ->
-                    FilterChip(text = s, selected = status == s, onClick = { status = s })
-                }
+        }
+        Text(text = "Status", style = type.label, color = colors.textSecondary, modifier = Modifier.padding(top = spacing.space4))
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            listOf("Want", "Now", "Done", "Dropped").forEach { s ->
+                FilterChip(text = s, selected = status == s, onClick = { status = s })
             }
-            QuietTextField(
-                label = "Progress",
-                value = progress,
-                onValueChange = { progress = it },
-                placeholder = "S2 · E4, or p. 120",
-            )
-            Text(text = "Rating", style = type.label, color = colors.textSecondary, modifier = Modifier.padding(top = spacing.space4))
-            RatingDotsRow(rating = rating, onRatingChange = { rating = it })
-            QuietTextField(label = "Notes", value = notes, onValueChange = { notes = it }, singleLine = false)
-            QuietPrimaryButton(
-                text = "Save",
-                onClick = {
-                    onSave(
-                        LibraryItemEntity(
-                            id = initial?.id ?: 0,
-                            title = LibraryTitleFormatter.normalize(title),
-                            type = typeSel!!,
-                            status = status,
-                            progress = progress,
-                            rating = rating,
-                            notes = notes,
-                            updatedAt = System.currentTimeMillis(),
-                        ),
-                    )
-                },
-                enabled = canSave,
-                modifier = Modifier.padding(top = spacing.space6),
-            )
-            if (initial != null && onDelete != null) {
-                QuietTextButton(text = "Delete", onClick = onDelete)
-            }
+        }
+        QuietTextField(
+            label = "Progress",
+            value = progress,
+            onValueChange = { progress = it },
+            placeholder = "S2 · E4, or p. 120",
+        )
+        Text(text = "Rating", style = type.label, color = colors.textSecondary, modifier = Modifier.padding(top = spacing.space4))
+        RatingDotsRow(rating = rating, onRatingChange = { rating = it })
+        QuietTextField(label = "Notes", value = notes, onValueChange = { notes = it }, singleLine = false)
+        QuietPrimaryButton(
+            text = "Save",
+            onClick = {
+                onSave(
+                    LibraryItemEntity(
+                        id = initial?.id ?: 0,
+                        title = LibraryTitleFormatter.normalize(title),
+                        type = typeSel!!,
+                        status = status,
+                        progress = progress,
+                        rating = rating,
+                        notes = notes,
+                        updatedAt = System.currentTimeMillis(),
+                    ),
+                )
+            },
+            enabled = canSave,
+            modifier = Modifier.padding(top = spacing.space6),
+        )
+        if (initial != null && onDelete != null) {
+            QuietTextButton(text = "Delete", onClick = onDelete)
         }
     }
 }

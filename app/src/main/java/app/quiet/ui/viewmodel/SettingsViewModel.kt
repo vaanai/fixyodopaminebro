@@ -9,6 +9,9 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.quiet.QuietApplication
+import app.quiet.data.prefs.PresetIds
+import java.time.LocalDate
+import java.time.ZoneId
 import app.quiet.data.repo.DataWiper
 import app.quiet.service.QuietAccessibilityService
 import app.quiet.snapshot.SnapshotCapture
@@ -27,6 +30,8 @@ data class SettingsUiState(
     val quietHoursEndLabel: String = "07:00",
     val breaksPerDay: Int = 3,
     val gateMinutes: Int = 10,
+    val holdSeconds: Int = 3,
+    val appearance: String = "system",
     val accessibilityOn: Boolean = false,
     val batteryStatus: String = "Optimized",
     val unknownCount: Int = 0,
@@ -64,6 +69,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 quietHoursEndLabel = formatMinutes(snap.quietHoursEndMinutes),
                 breaksPerDay = snap.breaksPerDay,
                 gateMinutes = snap.gateMinutes,
+                holdSeconds = snap.holdSeconds,
+                appearance = snap.appearance,
                 accessibilityOn = isAccessibilityEnabled(),
                 batteryStatus = batteryLabel(),
                 unknownCount = snap.unknownSurfaceCount,
@@ -75,33 +82,36 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setQuietHoursEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            quietApp.policyRepository.patchSettings { it.copy(quietHoursEnabled = enabled) }
+            patchCustom { it.copy(quietHoursEnabled = enabled) }
             reload()
         }
     }
 
     fun setQuietHoursStart(minutes: Int) {
         viewModelScope.launch {
-            quietApp.policyRepository.patchSettings { it.copy(quietHoursStartMinutes = minutes) }
+            patchCustom { it.copy(quietHoursStartMinutes = minutes) }
             reload()
         }
     }
 
     fun setQuietHoursEnd(minutes: Int) {
         viewModelScope.launch {
-            quietApp.policyRepository.patchSettings { it.copy(quietHoursEndMinutes = minutes) }
+            patchCustom { it.copy(quietHoursEndMinutes = minutes) }
             reload()
         }
     }
 
     fun setBreaksPerDay(count: Int) {
         viewModelScope.launch {
-            quietApp.policyRepository.patchSettings { snap ->
+            val todayKey = LocalDate.now(ZoneId.systemDefault()).toString()
+            patchCustom { snap ->
                 val clamped = count.coerceIn(0, 5)
-                snap.copy(
-                    breaksPerDay = clamped,
-                    breaksRemainingToday = min(snap.breaksRemainingToday, clamped),
-                )
+                val remaining = when {
+                    snap.breakDayKey != todayKey -> clamped
+                    clamped > snap.breaksPerDay -> maxOf(snap.breaksRemainingToday, clamped)
+                    else -> minOf(snap.breaksRemainingToday, clamped)
+                }
+                snap.copy(breaksPerDay = clamped, breaksRemainingToday = remaining)
             }
             reload()
         }
@@ -109,7 +119,28 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setGateMinutes(minutes: Int) {
         viewModelScope.launch {
-            quietApp.policyRepository.patchSettings { it.copy(gateMinutes = minutes) }
+            patchCustom { it.copy(gateMinutes = minutes) }
+            reload()
+        }
+    }
+
+    fun setHoldSeconds(seconds: Int) {
+        viewModelScope.launch {
+            val clamped = seconds.coerceIn(2, 5)
+            patchCustom { it.copy(holdSeconds = clamped) }
+            reload()
+        }
+    }
+
+    private suspend fun patchCustom(transform: (app.quiet.data.prefs.SettingsSnapshot) -> app.quiet.data.prefs.SettingsSnapshot) {
+        quietApp.policyRepository.patchSettings { snap ->
+            transform(snap).copy(presetId = PresetIds.CUSTOM)
+        }
+    }
+
+    fun setAppearance(mode: String) {
+        viewModelScope.launch {
+            quietApp.policyRepository.patchSettings { it.copy(appearance = mode) }
             reload()
         }
     }

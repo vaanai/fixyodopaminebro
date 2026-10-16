@@ -64,6 +64,28 @@ class EnforcementStateRepositoryTest {
     }
 
     @Test
+    fun refreshBreakAllowanceIfNewDayRefillsBeforeUi() = runBlocking {
+        runBlocking {
+            preferences.applySnapshot(
+                preferences.readSnapshot().copy(
+                    breaksRemainingToday = 0,
+                    breaksPerDay = 3,
+                    breakDayKey = "2025-12-31",
+                ),
+            )
+        }
+        val now = java.time.LocalDate.of(2026, 1, 1)
+            .atStartOfDay(java.time.ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli() + 60_000L
+        val updated = repository.refreshBreakAllowanceIfNewDay(now)
+        assertEquals(3, updated.breaksRemainingToday)
+        val snap = preferences.readSnapshot()
+        assertEquals(3, snap.breaksRemainingToday)
+        assertEquals("2026-01-01", snap.breakDayKey)
+    }
+
+    @Test
     fun startBreakPersistsBreakUntil() = runBlocking {
         val memory = EnforcementMemory(breaksRemainingToday = 3, breakAllowancePerDay = 3, breakDayKey = "")
         val now = 5_000L

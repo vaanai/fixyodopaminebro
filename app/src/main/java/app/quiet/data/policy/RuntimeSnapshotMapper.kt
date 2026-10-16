@@ -20,6 +20,7 @@ object RuntimeSnapshotMapper {
             breakDayKey = snapshot.breakDayKey,
             breakUntilEpochMs = snapshot.breakUntilEpochMs,
             gateMinutes = snapshot.gateMinutes,
+            holdSeconds = snapshot.holdSeconds.coerceIn(2, 5),
             passes = parsePasses(snapshot.passesJson),
         )
 

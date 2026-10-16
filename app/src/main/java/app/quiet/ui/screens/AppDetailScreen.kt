@@ -54,6 +54,7 @@ fun AppDetailScreen(appId: String, onBack: () -> Unit) {
                         options = listOf(Policy.ALLOW, Policy.GATE, Policy.BLOCK),
                         onChange = { vm.setFeedPolicy(row.rule.fullId, it) },
                         showDivider = index < state.feedSurfaces.lastIndex,
+                        segmentEnabled = row.rule.enforce,
                     )
                 }
             }
@@ -70,9 +71,10 @@ fun AppDetailScreen(appId: String, onBack: () -> Unit) {
                     label = friends.rule.label,
                     sublabel = friends.sublabel,
                     policy = friends.policy,
-                    options = listOf(Policy.BLOCK, Policy.ALLOW),
+                    options = listOf(Policy.BLOCK, Policy.OPEN_ONLY),
                     onChange = { vm.setFriendsPolicy(it) },
                     showDivider = false,
+                    segmentEnabled = friends.rule.enforce,
                 )
             }
         }

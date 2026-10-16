@@ -4,7 +4,10 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import quiet.core.walk.RawNode
 
-class AccessibilityNodeAdapter(private val node: AccessibilityNodeInfo) : RawNode {
+class AccessibilityNodeAdapter(
+    private val node: AccessibilityNodeInfo,
+    private val recycleOnRelease: Boolean = false,
+) : RawNode {
     private val rect = Rect()
 
     override val text: CharSequence? = node.text
@@ -26,8 +29,16 @@ class AccessibilityNodeAdapter(private val node: AccessibilityNodeInfo) : RawNod
 
     override fun childAt(index: Int): RawNode? {
         val child = node.getChild(index) ?: return null
-        return AccessibilityNodeAdapter(child)
+        return AccessibilityNodeAdapter(child, recycleOnRelease = true)
+    }
+
+    override fun release() {
+        if (!recycleOnRelease) return
+        try {
+            node.recycle()
+        } catch (_: Exception) {
+        }
     }
 }
 
-fun AccessibilityNodeInfo.toAdapter(): RawNode = AccessibilityNodeAdapter(this)
+fun AccessibilityNodeInfo.toAdapter(): RawNode = AccessibilityNodeAdapter(this, recycleOnRelease = false)

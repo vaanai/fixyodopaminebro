@@ -32,6 +32,18 @@ class EnforcementStateRepository(
         return updated
     }
 
+    suspend fun refreshBreakAllowanceIfNewDay(nowMs: Long): EnforcementMemory {
+        val memory = memoryFromSnapshot(preferences.readSnapshot())
+        val clock = object : quiet.core.enforce.Clock {
+            override fun millis(): Long = nowMs
+        }
+        val updated = Enforcer.syncBreakDay(memory, clock)
+        if (updated != memory) {
+            persistMemory(updated)
+        }
+        return updated
+    }
+
     suspend fun startBreak(memory: EnforcementMemory, nowMs: Long): EnforcementMemory {
         val clock = object : quiet.core.enforce.Clock {
             override fun millis(): Long = nowMs

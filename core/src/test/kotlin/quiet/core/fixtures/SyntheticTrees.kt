@@ -8,11 +8,13 @@ object SyntheticTrees {
         contentDescription: String? = null,
         selected: Boolean = false,
         viewId: String? = null,
+        className: String? = null,
     ) = NodeInfo(
         text = text,
         contentDescription = contentDescription,
         isSelected = selected,
         viewId = viewId,
+        className = className,
     )
 
     fun instagramDmInbox() = listOf(
@@ -45,6 +47,31 @@ object SyntheticTrees {
         node("Stories"),
         node("Home", selected = true),
         node("Reels"),
+    )
+
+    fun instagramThreadWithFeedTabSelected() = listOf(
+        node("Home", selected = true),
+        node("Reels"),
+        node("Messages"),
+        node("Message…", className = "android.widget.EditText"),
+    )
+
+    fun instagramReelsWithSendButton() = listOf(
+        node("Home"),
+        node("Reels", selected = true),
+        node("Send"),
+    )
+
+    fun tiktokThreadWithForYouTabSelected() = listOf(
+        node("For You", selected = true),
+        node("Inbox"),
+        node("Message…", className = "android.widget.EditText"),
+    )
+
+    fun tiktokForYouWithSendButton() = listOf(
+        node("For You", selected = true),
+        node("Inbox"),
+        node("Send"),
     )
 
     fun threadNoTabBar() = listOf(

@@ -13,4 +13,6 @@ interface RawNode {
     val boundsBottom: Int
     val childCount: Int
     fun childAt(index: Int): RawNode?
+
+    fun release() {}
 }

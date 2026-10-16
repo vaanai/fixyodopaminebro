@@ -1,7 +1,7 @@
 package app.quiet.ui.sheets
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -29,13 +30,11 @@ import androidx.compose.ui.unit.dp
 import android.view.accessibility.AccessibilityManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.core.view.ViewCompat
 import app.quiet.ui.components.QuietOutlineButton
 import app.quiet.ui.components.QuietPrimaryButton
 import app.quiet.ui.components.QuietTextButton
 import app.quiet.ui.theme.QuietThemeAccessor
 import quiet.core.QuietTiming
-import kotlin.math.hypot
 
 @Composable
 fun InterventionSheetContent(
@@ -79,9 +78,11 @@ fun GateSheetContent(
     surfaceLabel: String,
     minutes: Int,
     holdMs: Long = QuietTiming.GATE_HOLD_MS,
+    messagesFound: Boolean = false,
     onConfirm: () -> Unit,
     onGoMessages: () -> Unit,
     onNotNow: () -> Unit,
+    onGoHome: () -> Unit,
 ) {
     val colors = QuietThemeAccessor.colors
     val spacing = QuietThemeAccessor.spacing
@@ -113,8 +114,11 @@ fun GateSheetContent(
         } else {
             HoldRing(holdMs = holdMs, onComplete = onConfirm)
         }
-        QuietTextButton(text = "Go to Messages", onClick = onGoMessages, accent = false)
-        QuietTextButton(text = "Go home", onClick = onNotNow, accent = false)
+        if (messagesFound) {
+            QuietTextButton(text = "Go to Messages", onClick = onGoMessages, accent = false)
+        }
+        QuietTextButton(text = "Not now", onClick = onNotNow, accent = false)
+        QuietTextButton(text = "Go home", onClick = onGoHome, accent = false)
     }
 }
 
@@ -144,20 +148,32 @@ private fun HoldRing(holdMs: Long, onComplete: () -> Unit) {
         modifier = Modifier
             .size(ringSize)
             .semantics { contentDescription = "Hold to confirm" }
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { holding = true },
-                    onDragEnd = { holding = false },
-                    onDragCancel = { holding = false },
-                    onDrag = { change, _ ->
-                        val center = Offset(ringSize.toPx() / 2, ringSize.toPx() / 2)
-                        val dist = hypot(change.position.x - center.x, change.position.y - center.y)
-                        if (dist > ringSize.toPx() / 2 + 8.dp.toPx()) holding = false
+            .pointerInput(ringSize, holdMs) {
+                detectTapGestures(
+                    onPress = {
+                        holding = true
+                        try {
+                            tryAwaitRelease()
+                        } finally {
+                            holding = false
+                        }
                     },
                 )
             },
     ) {
         val stroke = radius.ringStroke.toPx()
+        val glowAlpha = colors.ringGlowAlpha
+        if (glowAlpha > 0f) {
+            drawArc(
+                color = Color.White.copy(alpha = glowAlpha),
+                startAngle = -90f,
+                sweepAngle = 360f * progress,
+                useCenter = false,
+                topLeft = Offset(stroke, stroke),
+                size = Size(size.width - stroke * 2, size.height - stroke * 2),
+                style = Stroke(stroke * 2.2f, cap = StrokeCap.Round),
+            )
+        }
         drawArc(
             color = colors.border,
             startAngle = -90f,

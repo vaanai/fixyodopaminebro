@@ -45,14 +45,14 @@ fun PolicySegment(
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 color = when {
-                    isSelected -> colors.onAccent
+                    isSelected && enabled -> colors.onAccent
                     !enabled -> colors.textTertiary
                     else -> colors.textSecondary
                 },
                 modifier = Modifier
                     .weight(1f)
                     .background(
-                        if (isSelected) colors.accent else colors.surface,
+                        if (isSelected && enabled) colors.accent else colors.surface,
                         RoundedCornerShape(radius.radiusS),
                     )
                     .clickable(enabled = enabled && !isSelected) { onSelect(option) }
@@ -62,9 +62,4 @@ fun PolicySegment(
     }
 }
 
-private fun label(policy: Policy): String = when (policy) {
-    Policy.ALLOW -> "Allow"
-    Policy.GATE -> "Gate"
-    Policy.BLOCK -> "Block"
-    Policy.OPEN_ONLY -> "Allow"
-}
+private fun label(policy: Policy): String = policySegmentLabel(policy)

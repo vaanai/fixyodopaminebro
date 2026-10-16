@@ -22,13 +22,12 @@ object AppSummaryBuilder {
         val hasUndetected = rules.surfaces.any {
             (it.kind == SurfaceKind.feed || it.kind == SurfaceKind.shared_media) && !it.enforce
         }
-        val friendsSurface = rules.surfaces.firstOrNull { it.kind == SurfaceKind.shared_media }
-        val friendsPart = friendsSurface?.let { surface ->
+        val friendsPart = rules.surfaces.firstOrNull { it.kind == SurfaceKind.shared_media && it.enforce }?.let { surface ->
             val policy = friends[surface.fullId] ?: surface.defaultPolicy
             when (policy) {
                 Policy.BLOCK -> "Friends' reels off"
-                Policy.ALLOW -> "Friends' reels allowed"
-                Policy.OPEN_ONLY -> "Friends' reels allowed"
+                Policy.OPEN_ONLY -> "Friends' reels open-only"
+                Policy.ALLOW -> "Friends' reels open-only"
                 else -> null
             }
         }

@@ -5,12 +5,31 @@ import quiet.core.rules.AppRules
 import quiet.core.rules.ClassificationResult
 import quiet.core.rules.MatchKey
 import quiet.core.rules.MatchRules
+import quiet.core.rules.SurfaceKind
 import quiet.core.rules.SurfaceRule
 
 object SurfaceClassifier {
     fun classify(nodes: List<NodeInfo>, rules: AppRules, truncated: Boolean): ClassificationResult {
         if (nodes.isEmpty()) return ClassificationResult.UNKNOWN
-        for (surface in rules.surfaces) {
+        if (ConversationHeuristics.looksLikeOpenThread(nodes, rules.messagesTabLabels)) {
+            val thread = rules.surfaces.firstOrNull { it.id == "dm_thread" }
+            if (thread != null) {
+                val key = matchesSurface(nodes, thread.match, rules.messagesTabLabels)
+                if (key != null) {
+                    return ClassificationResult(
+                        surfaceId = thread.fullId,
+                        kind = thread.kind,
+                        enforce = thread.enforce,
+                        matchedKey = key,
+                    )
+                }
+            }
+            return ClassificationResult.UNKNOWN
+        }
+        val ordered = rules.surfaces.sortedWith(
+            compareBy<SurfaceRule> { kindOrder(it.kind) }.thenBy { rules.surfaces.indexOf(it) },
+        )
+        for (surface in ordered) {
             val key = matchesSurface(nodes, surface.match, rules.messagesTabLabels)
             if (key != null) {
                 if (truncated && key != MatchKey.selectedTab) {
@@ -25,6 +44,13 @@ object SurfaceClassifier {
             }
         }
         return ClassificationResult.UNKNOWN
+    }
+
+    private fun kindOrder(kind: SurfaceKind): Int = when (kind) {
+        SurfaceKind.protected -> 0
+        SurfaceKind.shared_media -> 1
+        SurfaceKind.feed -> 2
+        SurfaceKind.other -> 3
     }
 
     private fun matchesSurface(

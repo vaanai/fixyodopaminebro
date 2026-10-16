@@ -23,6 +23,18 @@ class ClassifierTest {
     }
 
     @Test
+    fun nodeListIsDm() {
+        assertSurface(instagram, SyntheticTrees.instagramDmInbox(), "instagram.dm_inbox")
+        assertSurface(tiktok, SyntheticTrees.tiktokDmThread(), "tiktok.dm_thread")
+    }
+
+    @Test
+    fun nodeListIsFeed() {
+        assertSurface(instagram, SyntheticTrees.instagramHomeFeed(), "instagram.home_feed")
+        assertSurface(tiktok, SyntheticTrees.tiktokForYou(), "tiktok.for_you")
+    }
+
+    @Test
     fun syntheticFixturesClassify() {
         assertSurface(instagram, SyntheticTrees.instagramDmInbox(), "instagram.dm_inbox")
         assertSurface(instagram, SyntheticTrees.instagramDmThread(), "instagram.dm_thread")
@@ -63,6 +75,49 @@ class ClassifierTest {
     fun homeWithStoriesTray() {
         val result = SurfaceClassifier.classify(SyntheticTrees.instagramHomeWithStoriesTray(), instagram, truncated = false)
         assertEquals("instagram.home_feed", result.surfaceId)
+    }
+
+    @Test
+    fun threadWithStaleFeedTabSelected_isUnknownNotFeed() {
+        val result = SurfaceClassifier.classify(
+            SyntheticTrees.instagramThreadWithFeedTabSelected(),
+            instagram,
+            truncated = false,
+        )
+        assertTrue(result.isUnknown)
+        assertTrue(result.surfaceId != "instagram.home_feed")
+        assertTrue(result.surfaceId != "instagram.reels")
+    }
+
+    @Test
+    fun reelsWithSendButton_stillClassifiedAsReels() {
+        val result = SurfaceClassifier.classify(
+            SyntheticTrees.instagramReelsWithSendButton(),
+            instagram,
+            truncated = false,
+        )
+        assertEquals("instagram.reels", result.surfaceId)
+    }
+
+    @Test
+    fun tiktokThreadWithForYouSelected_isUnknownNotFeed() {
+        val result = SurfaceClassifier.classify(
+            SyntheticTrees.tiktokThreadWithForYouTabSelected(),
+            tiktok,
+            truncated = false,
+        )
+        assertTrue(result.isUnknown)
+        assertTrue(result.surfaceId != "tiktok.for_you")
+    }
+
+    @Test
+    fun tiktokForYouWithSend_stillClassifiedAsForYou() {
+        val result = SurfaceClassifier.classify(
+            SyntheticTrees.tiktokForYouWithSendButton(),
+            tiktok,
+            truncated = false,
+        )
+        assertEquals("tiktok.for_you", result.surfaceId)
     }
 
     @Test
