@@ -32,6 +32,7 @@ data class OrchestratorEffects(
     val scheduleRecheck: Boolean = false,
     val clearStability: Boolean = false,
     val logAction: String? = null,
+    val recordUnknown: Boolean = false,
 )
 
 data class SheetRequest(
@@ -46,6 +47,7 @@ data class GateRequest(
     val label: String,
     val minutes: Int,
     val holdMs: Long,
+    val messagesAvailable: Boolean = false,
 )
 
 class ServiceOrchestrator(
@@ -103,10 +105,11 @@ class ServiceOrchestrator(
         }
         if (classification.isUnknown) {
             stability = StabilityState()
+            val recordUnknown = nodes.isNotEmpty()
             if (sheetShownForSurface != null) {
-                return OrchestratorEffects(dismissSheet = true, clearStability = true)
+                return OrchestratorEffects(dismissSheet = true, clearStability = true, recordUnknown = recordUnknown)
             }
-            return OrchestratorEffects(clearStability = true)
+            return OrchestratorEffects(clearStability = true, recordUnknown = recordUnknown)
         }
         val now = clock()
         updateStability(classification.surfaceId!!, now)
@@ -153,9 +156,17 @@ class ServiceOrchestrator(
     ): OrchestratorEffects {
         return when (action) {
             EnforcementAction.None -> {
+                val now = clock()
+                val activeBreak = memory.breakUntilEpochMs?.let { it > now } == true
+                val activePass = observation.surfaceId != null &&
+                    memory.passes.any { it.surfaceId == observation.surfaceId && it.untilEpochMs > now }
+                val allowPolicy = observation.policy == Policy.ALLOW || observation.policy == Policy.OPEN_ONLY
                 val dismiss = observation.kind == SurfaceKind.protected ||
                     !observation.enforce ||
-                    observation.surfaceId == null
+                    observation.surfaceId == null ||
+                    allowPolicy ||
+                    activeBreak ||
+                    activePass
                 OrchestratorEffects(dismissSheet = dismiss && sheetShownForSurface != null)
             }
             is EnforcementAction.Redirect -> {
@@ -178,6 +189,7 @@ class ServiceOrchestrator(
                         surfaceLabel,
                         policySnapshot.gateMinutes,
                         policySnapshot.holdMs(),
+                        messagesAvailable = observation.messagesFound,
                     ),
                     logAction = "GATE_SHOWN",
                 )
@@ -211,6 +223,11 @@ class ServiceOrchestrator(
         "instagram" -> instagramRules
         "tiktok" -> tiktokRules
         else -> null
+    }
+
+    fun recordSurfaceCooldown(surfaceId: String) {
+        val until = clock() + QuietTiming.SHEET_COOLDOWN_MS
+        sheetCooldownUntil = sheetCooldownUntil + (surfaceId to until)
     }
 }
 

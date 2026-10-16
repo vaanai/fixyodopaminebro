@@ -73,6 +73,7 @@ fun AppDetailScreen(appId: String, onBack: () -> Unit) {
                     options = listOf(Policy.BLOCK, Policy.OPEN_ONLY),
                     onChange = { vm.setFriendsPolicy(it) },
                     showDivider = false,
+                    segmentEnabled = friends.rule.enforce,
                 )
             }
         }

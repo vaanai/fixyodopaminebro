@@ -164,7 +164,7 @@ class EnforcementEngine(
         callbacks.scheduleSheetTimeout()
     }
 
-    private fun showGateIfAllowed(req: GateRequest) {
+    internal fun showGateIfAllowed(req: GateRequest) {
         val now = clock()
         val cooldown = orchestrator.sheetCooldownUntil[req.surfaceId] ?: 0L
         if (now < cooldown) return

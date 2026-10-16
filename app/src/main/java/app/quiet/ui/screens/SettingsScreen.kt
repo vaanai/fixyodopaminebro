@@ -79,7 +79,7 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
                 )
                 Text(
                     text = if (state.quietHoursEnabled) {
-                        "During quiet hours, Gate becomes Block."
+                        "During quiet hours, Gate becomes Block on surfaces already set to Gate."
                     } else {
                         "Off"
                     },

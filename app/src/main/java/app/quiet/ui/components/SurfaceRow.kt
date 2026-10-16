@@ -26,6 +26,7 @@ fun SurfaceRow(
     options: List<Policy>,
     onChange: (Policy) -> Unit,
     showDivider: Boolean = true,
+    segmentEnabled: Boolean = true,
 ) {
     val spacing = QuietThemeAccessor.spacing
     val type = QuietThemeAccessor.typography
@@ -50,6 +51,7 @@ fun SurfaceRow(
             selected = policy,
             onSelect = onChange,
             modifier = Modifier.padding(top = spacing.space2),
+            enabled = segmentEnabled,
         )
     }
     if (showDivider) {

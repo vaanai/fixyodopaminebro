@@ -78,6 +78,18 @@ class ClassifierTest {
     }
 
     @Test
+    fun threadWithStaleFeedTabSelected_isUnknownNotFeed() {
+        val result = SurfaceClassifier.classify(
+            SyntheticTrees.instagramThreadWithFeedTabSelected(),
+            instagram,
+            truncated = false,
+        )
+        assertTrue(result.isUnknown)
+        assertTrue(result.surfaceId != "instagram.home_feed")
+        assertTrue(result.surfaceId != "instagram.reels")
+    }
+
+    @Test
     fun threadNoTabBarNeverFeed() {
         val result = SurfaceClassifier.classify(SyntheticTrees.threadNoTabBar(), instagram, truncated = false)
         assertTrue(result.surfaceId == "instagram.dm_thread" || result.isUnknown)

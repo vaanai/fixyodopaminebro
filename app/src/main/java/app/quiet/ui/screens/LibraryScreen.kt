@@ -33,10 +33,7 @@ import app.quiet.ui.library.LibraryEditSheet
 import app.quiet.ui.theme.QuietThemeAccessor
 import app.quiet.ui.viewmodel.LibraryViewModel
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 
 @Composable
 fun LibraryScreen(vm: LibraryViewModel) {
@@ -53,7 +50,6 @@ fun LibraryScreen(vm: LibraryViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
-            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = spacing.space5),
     ) {
         QuietTopBar(

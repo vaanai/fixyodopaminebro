@@ -47,6 +47,14 @@ object SyntheticTrees {
         node("Reels"),
     )
 
+    fun instagramThreadWithFeedTabSelected() = listOf(
+        node("Home", selected = true),
+        node("Reels"),
+        node("Messages"),
+        node("Send"),
+        node("Message…"),
+    )
+
     fun threadNoTabBar() = listOf(
         node("Home"),
         node("Reels"),

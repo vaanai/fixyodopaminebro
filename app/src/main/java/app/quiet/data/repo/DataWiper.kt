@@ -2,6 +2,7 @@ package app.quiet.data.repo
 
 import app.quiet.data.policy.PolicyRepository
 import app.quiet.data.prefs.QuietPreferences
+import app.quiet.service.QuietAccessibilityService
 
 class DataWiper(
     private val preferences: QuietPreferences,
@@ -14,5 +15,6 @@ class DataWiper(
         events.deleteAll()
         library.deleteAll()
         policies.applyPreset(app.quiet.data.prefs.PresetIds.BALANCED)
+        QuietAccessibilityService.instance?.refreshPolicyFromHolder()
     }
 }

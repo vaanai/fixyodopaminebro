@@ -57,8 +57,7 @@ class OnboardingViewModel(app: Application) : AndroidViewModel(app) {
 
     fun finish() {
         viewModelScope.launch {
-            val snap = quietApp.preferences.readSnapshot()
-            quietApp.preferences.applySnapshot(snap.copy(onboardingComplete = true))
+            quietApp.policyRepository.patchSettings { it.copy(onboardingComplete = true) }
             _state.value = _state.value.copy(complete = true, step = 4)
         }
     }

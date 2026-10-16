@@ -294,6 +294,42 @@ class ServiceSequenceTest {
     }
 
     @Test
+    fun gateDismissCooldownBlocksImmediateReshow() {
+        orchestrator.recordSurfaceCooldown("instagram.home_feed")
+        val req = GateRequest(
+            surfaceId = "instagram.home_feed",
+            label = "Home feed",
+            minutes = 10,
+            holdMs = 3_000L,
+            messagesAvailable = true,
+        )
+        engine.showGateIfAllowed(req)
+        assertEquals(0, gateCount)
+        now += QuietTiming.SHEET_COOLDOWN_MS + 1
+        engine.showGateIfAllowed(req)
+        assertEquals(1, gateCount)
+    }
+
+    @Test
+    fun allowOnStableFeedDismissesSheet() {
+        orchestrator.sheetShownForSurface = "instagram.home_feed"
+        orchestrator.policySnapshot = PolicyView(
+            gateMinutes = 10,
+            policies = mapOf("instagram.home_feed" to quiet.core.rules.Policy.ALLOW),
+            friends = emptyMap(),
+        )
+        walkResults = mutableListOf(WalkResult(homeFeed(), false), WalkResult(homeFeed(), false))
+        engine.onTargetEvent("com.instagram.android")
+        now += QuietTiming.DEBOUNCE_MS
+        engine.runDebouncedWalk("com.instagram.android")
+        now += QuietTiming.STABILITY_GAP_MS
+        engine.onTargetEvent("com.instagram.android")
+        now += QuietTiming.DEBOUNCE_MS
+        engine.runDebouncedWalk("com.instagram.android")
+        assertTrue(dismissCount >= 1)
+    }
+
+    @Test
     fun gateHoldMsComesFromPolicySnapshot() {
         orchestrator.policySnapshot = PolicyView(
             gateMinutes = 10,

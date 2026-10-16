@@ -116,9 +116,12 @@ object Enforcer {
     }
 
     fun startBreak(memory: EnforcementMemory, clock: Clock): EnforcementMemory {
-        if (memory.breaksRemainingToday <= 0) return memory
         val dayKey = LocalDate.ofInstant(Instant.ofEpochMilli(clock.millis()), clock.zone()).toString()
-        val remaining = if (memory.breakDayKey != dayKey) memory.breakAllowancePerDay else memory.breaksRemainingToday
+        val remaining = if (memory.breakDayKey != dayKey) {
+            memory.breakAllowancePerDay
+        } else {
+            memory.breaksRemainingToday
+        }
         if (remaining <= 0) return memory
         return memory.copy(
             breakUntilEpochMs = clock.millis() + QuietTiming.BREAK_DURATION_MS,

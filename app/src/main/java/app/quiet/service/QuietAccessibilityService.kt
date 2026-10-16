@@ -9,7 +9,6 @@ import app.quiet.data.policy.PolicySnapshotHolder
 import app.quiet.snapshot.SnapshotCapture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -24,9 +23,9 @@ class QuietAccessibilityService : AccessibilityService() {
     private lateinit var orchestrator: ServiceOrchestrator
     private lateinit var engine: EnforcementEngine
     private lateinit var overlay: OverlayController
+    private lateinit var debounceRunner: TargetDebounceRunner
     private val heartbeatRunning = AtomicBoolean(false)
-    private var sheetTimeoutJob: Job? = null
-    private var debounceJob: Job? = null
+    private var sheetTimeoutJob: kotlinx.coroutines.Job? = null
     private val confirmingWalkHolder = ConfirmingWalkHolder()
     private val enforcementMemorySync = EnforcementMemorySynchronizer()
 
@@ -40,118 +39,144 @@ class QuietAccessibilityService : AccessibilityService() {
         engine = EnforcementEngine(
             orchestrator,
             clock = { System.currentTimeMillis() },
-            callbacks = EngineCallbacks(
-                walk = { packageName -> walkTargetWindow(packageName) },
-                clickMessages = { label, _, _ ->
-                    clickMessagesOnHeldRoot(
-                        confirmingWalkHolder,
-                        label,
-                        MessageClickResolver::performClickFromConfirmingLabel,
-                    )
-                },
-                showIntervention = { req ->
-                    overlay.showIntervention(
-                        req,
-                        onGoMessages = {
-                            val rules = orchestrator.rulesForAppId(req.surfaceId.substringBefore('.')) ?: return@showIntervention
-                            val pkg = rules.packages.first()
-                            findTargetRoot(pkg)?.let { root ->
-                                try {
-                                    MessageClickResolver.performClick(root, rules.messagesTabLabels)
-                                } finally {
-                                    recycleSafe(root)
-                                }
-                            }
-                            overlay.dismiss()
-                            orchestrator.sheetShownForSurface = null
-                        },
-                        onBreak = {
-                            scope.launch(Dispatchers.IO) {
-                                val app = application as QuietApplication
-                                val current = enforcementMemorySync.readMemory { orchestrator.memory }
-                                val updated = app.enforcementStateRepository.startBreak(
-                                    current,
-                                    System.currentTimeMillis(),
-                                )
-                                enforcementMemorySync.commitUpdated({ orchestrator.memory = it }, updated)
-                                withContext(Dispatchers.Main) {
-                                    overlay.dismiss()
-                                    orchestrator.sheetShownForSurface = null
-                                }
-                            }
-                        },
-                        onHome = {
-                            performGlobalAction(GLOBAL_ACTION_HOME)
-                            overlay.dismiss()
-                            orchestrator.sheetShownForSurface = null
-                        },
-                    )
-                },
-                showGate = { req ->
-                    overlay.showGate(
-                        req,
-                        onConfirm = {
-                            scope.launch(Dispatchers.IO) {
-                                val app = application as QuietApplication
-                                val minutes = orchestrator.policySnapshot.gateMinutes
-                                val now = System.currentTimeMillis()
-                                val current = enforcementMemorySync.readMemory { orchestrator.memory }
-                                val updated = app.enforcementStateRepository.grantGatePass(
-                                    req.surfaceId,
-                                    minutes,
-                                    current,
-                                    now,
-                                )
-                                enforcementMemorySync.commitUpdated({ orchestrator.memory = it }, updated)
-                                logEffect(
-                                    OrchestratorEffects(logAction = "GATE_CONFIRMED"),
-                                )
-                                withContext(Dispatchers.Main) {
-                                    overlay.dismiss()
-                                    orchestrator.sheetShownForSurface = null
-                                }
-                            }
-                        },
-                        onMessages = {
-                            val rules = orchestrator.rulesForAppId(req.surfaceId.substringBefore('.')) ?: return@showGate
-                            findTargetRoot(rules.packages.first())?.let { root ->
-                                try {
-                                    MessageClickResolver.performClick(root, rules.messagesTabLabels)
-                                } finally {
-                                    recycleSafe(root)
-                                }
-                            }
-                            overlay.dismiss()
-                            orchestrator.sheetShownForSurface = null
-                        },
-                        onNotNow = {
-                            overlay.dismiss()
-                            orchestrator.sheetShownForSurface = null
-                        },
-                    )
-                },
-                dismissSheet = {
-                    overlay.dismiss()
-                    sheetTimeoutJob?.cancel()
-                },
-                scheduleRecheck = { generation, packageName ->
-                    scope.launch {
-                        delay(QuietTiming.RECHECK_DELAY_MS)
-                        engine.runRecheck(packageName, generation)
-                    }
-                },
-                scheduleSheetTimeout = {
-                    sheetTimeoutJob?.cancel()
-                    sheetTimeoutJob = scope.launch {
-                        delay(QuietTiming.SHEET_TIMEOUT_MS)
-                        engine.onSheetTimeout()
-                    }
-                },
-            ),
+            callbacks = buildCallbacks(),
+        )
+        debounceRunner = TargetDebounceRunner(
+            scope = scope,
+            orchestrator = orchestrator,
+            clock = { System.currentTimeMillis() },
+            syncPolicy = { syncPolicyFromHolder() },
+            runWalk = { packageName ->
+                val fx = engine.runDebouncedWalk(packageName)
+                if (fx != null) {
+                    applyWalkEffects(fx)
+                }
+                fx
+            },
+            onAfterWalk = { confirmingWalkHolder.release(::recycleSafe) },
+            onFailure = { failOpen() },
         )
         syncPolicyFromHolder()
         startHeartbeat()
     }
+
+    private fun buildCallbacks(): EngineCallbacks = EngineCallbacks(
+        walk = { packageName -> walkTargetWindow(packageName) },
+        clickMessages = { label, _, _ ->
+            clickMessagesOnHeldRoot(
+                confirmingWalkHolder,
+                label,
+                MessageClickResolver::performClickFromConfirmingLabel,
+            )
+        },
+        showIntervention = { req ->
+            overlay.showIntervention(
+                req,
+                onGoMessages = {
+                    val rules = orchestrator.rulesForAppId(req.surfaceId.substringBefore('.')) ?: return@showIntervention
+                    val pkg = rules.packages.first()
+                    findTargetRoot(pkg)?.let { root ->
+                        try {
+                            MessageClickResolver.performClick(root, rules.messagesTabLabels)
+                        } finally {
+                            recycleSafe(root)
+                        }
+                    }
+                    overlay.dismiss()
+                    orchestrator.sheetShownForSurface = null
+                },
+                onBreak = {
+                    scope.launch(Dispatchers.IO) {
+                        val app = application as QuietApplication
+                        val current = enforcementMemorySync.readMemory { orchestrator.memory }
+                        val updated = app.enforcementStateRepository.startBreak(
+                            current,
+                            System.currentTimeMillis(),
+                        )
+                        enforcementMemorySync.commitUpdated({ orchestrator.memory = it }, updated)
+                        withContext(Dispatchers.Main) {
+                            overlay.dismiss()
+                            orchestrator.sheetShownForSurface = null
+                        }
+                    }
+                },
+                onHome = {
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    overlay.dismiss()
+                    orchestrator.sheetShownForSurface = null
+                },
+            )
+        },
+        showGate = { req ->
+            overlay.showGate(
+                req,
+                messagesFound = req.messagesAvailable,
+                onConfirm = {
+                    scope.launch(Dispatchers.IO) {
+                        val app = application as QuietApplication
+                        val now = System.currentTimeMillis()
+                        val current = enforcementMemorySync.readMemory { orchestrator.memory }
+                        val updated = app.enforcementStateRepository.grantGatePass(
+                            req.surfaceId,
+                            req.minutes,
+                            current,
+                            now,
+                        )
+                        enforcementMemorySync.commitUpdated({ orchestrator.memory = it }, updated)
+                        logEffect(
+                            OrchestratorEffects(logAction = "GATE_CONFIRMED"),
+                        )
+                        withContext(Dispatchers.Main) {
+                            overlay.dismiss()
+                            orchestrator.sheetShownForSurface = null
+                        }
+                    }
+                },
+                onMessages = {
+                    val rules = orchestrator.rulesForAppId(req.surfaceId.substringBefore('.')) ?: return@showGate
+                    val pkg = rules.packages.first()
+                    findTargetRoot(pkg)?.let { root ->
+                        try {
+                            val clicked = MessageClickResolver.performClick(root, rules.messagesTabLabels)
+                            if (!clicked) return@showGate
+                        } finally {
+                            recycleSafe(root)
+                        }
+                    } ?: return@showGate
+                    overlay.dismiss()
+                    orchestrator.sheetShownForSurface = null
+                },
+                onNotNow = {
+                    orchestrator.recordSurfaceCooldown(req.surfaceId)
+                    overlay.dismiss()
+                    orchestrator.sheetShownForSurface = null
+                },
+                onGoHome = {
+                    orchestrator.recordSurfaceCooldown(req.surfaceId)
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    overlay.dismiss()
+                    orchestrator.sheetShownForSurface = null
+                },
+            )
+        },
+        dismissSheet = {
+            overlay.dismiss()
+            sheetTimeoutJob?.cancel()
+        },
+        scheduleRecheck = { generation, packageName ->
+            scope.launch {
+                delay(QuietTiming.RECHECK_DELAY_MS)
+                engine.runRecheck(packageName, generation)
+            }
+        },
+        scheduleSheetTimeout = {
+            sheetTimeoutJob?.cancel()
+            sheetTimeoutJob = scope.launch {
+                delay(QuietTiming.SHEET_TIMEOUT_MS)
+                engine.onSheetTimeout()
+            }
+        },
+    )
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         try {
@@ -163,21 +188,30 @@ class QuietAccessibilityService : AccessibilityService() {
                 else -> engine.onForeignPackage()
             }
         } catch (_: Throwable) {
-            overlay.dismiss()
-            orchestrator.stability = StabilityState()
+            failOpen()
         }
     }
 
     private fun handleTarget(packageName: String) {
         if (!engine.onTargetEvent(packageName)) return
-        debounceJob?.cancel()
-        debounceJob = scope.launch {
-            delay(QuietTiming.DEBOUNCE_MS)
-            syncPolicyFromHolder()
-            val fx = engine.runDebouncedWalk(packageName) ?: return@launch
-            logEffect(fx)
-            confirmingWalkHolder.release(::recycleSafe)
+        debounceRunner.onEvent(packageName)
+    }
+
+    private fun applyWalkEffects(fx: OrchestratorEffects) {
+        logEffect(fx)
+        if (fx.recordUnknown) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    (application as QuietApplication).preferences.incrementUnknown()
+                } catch (_: Exception) {
+                }
+            }
         }
+    }
+
+    private fun failOpen() {
+        overlay.dismiss()
+        orchestrator.stability = StabilityState()
     }
 
     private fun logEffect(fx: OrchestratorEffects) {
@@ -218,6 +252,10 @@ class QuietAccessibilityService : AccessibilityService() {
     fun captureSnapshotForDiagnostics(): SnapshotCapture.Result =
         SnapshotCapture.capture(this, orchestrator::rulesFor)
 
+    fun refreshPolicyFromHolder() {
+        syncPolicyFromHolder()
+    }
+
     override fun onInterrupt() {
         overlay.dismiss()
         sheetTimeoutJob?.cancel()
@@ -255,7 +293,9 @@ class QuietAccessibilityService : AccessibilityService() {
             val app = application as QuietApplication
             while (heartbeatRunning.get()) {
                 app.preferences.writeHeartbeat(System.currentTimeMillis())
-                syncMemoryFromHolder()
+                withContext(Dispatchers.Main) {
+                    syncPolicyFromHolder()
+                }
                 delay(QuietTiming.HEARTBEAT_INTERVAL_MS)
             }
         }

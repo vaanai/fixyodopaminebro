@@ -10,13 +10,26 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import app.quiet.ui.sheets.GateSheetContent
 import app.quiet.ui.sheets.InterventionSheetContent
+import app.quiet.ui.theme.AppearanceMode
 import app.quiet.ui.theme.QuietTheme
 
 class OverlayController(private val service: AccessibilityService) {
     private var root: FrameLayout? = null
     private var params: WindowManager.LayoutParams? = null
+    private val overlayLifecycleOwner = object : LifecycleOwner {
+        private val registry = LifecycleRegistry(this)
+        override val lifecycle: Lifecycle = registry
+
+        init {
+            registry.currentState = Lifecycle.State.RESUMED
+        }
+    }
 
     fun dismiss() {
         val view = root ?: return
@@ -42,15 +55,24 @@ class OverlayController(private val service: AccessibilityService) {
         }
     }
 
-    fun showGate(request: GateRequest, onConfirm: () -> Unit, onMessages: () -> Unit, onNotNow: () -> Unit) {
+    fun showGate(
+        request: GateRequest,
+        messagesFound: Boolean,
+        onConfirm: () -> Unit,
+        onMessages: () -> Unit,
+        onNotNow: () -> Unit,
+        onGoHome: () -> Unit,
+    ) {
         show {
             GateSheetContent(
                 surfaceLabel = request.label,
                 minutes = request.minutes,
                 holdMs = request.holdMs,
+                messagesFound = messagesFound,
                 onConfirm = onConfirm,
                 onGoMessages = onMessages,
                 onNotNow = onNotNow,
+                onGoHome = onGoHome,
             )
         }
     }
@@ -59,8 +81,9 @@ class OverlayController(private val service: AccessibilityService) {
         dismiss()
         val frame = FrameLayout(service)
         val composeView = ComposeView(service).apply {
+            setViewTreeLifecycleOwner(overlayLifecycleOwner)
             setContent {
-                QuietTheme {
+                QuietTheme(appearance = AppearanceMode.Dark) {
                     Surface(modifier = Modifier.fillMaxWidth().wrapContentHeight()) {
                         content()
                     }

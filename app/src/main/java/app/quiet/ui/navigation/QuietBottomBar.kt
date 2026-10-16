@@ -1,6 +1,7 @@
 package app.quiet.ui.navigation
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
@@ -34,6 +35,7 @@ fun QuietBottomBar(selected: Int, onSelect: (Int) -> Unit) {
             modifier = Modifier.height(spacing.bottomBarHeight),
             containerColor = colors.background,
             tonalElevation = 0.dp,
+            windowInsets = WindowInsets(0, 0, 0, 0),
         ) {
             items.forEach { (index, label, icon) ->
                 val selectedItem = selected == index

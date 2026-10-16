@@ -61,6 +61,7 @@ object TreeWalker {
                 }
                 val child = node.childAt(i) ?: continue
                 visit(child)
+                child.release()
             }
         }
 

@@ -183,6 +183,19 @@ class EnforcerTest {
     }
 
     @Test
+    fun startBreakRefillsOnNewDayAfterZero() {
+        val clock = FakeClock(atHour(10), zone)
+        val memory = EnforcementMemory(
+            breaksRemainingToday = 0,
+            breakAllowancePerDay = 3,
+            breakDayKey = "2025-12-31",
+        )
+        val updated = Enforcer.startBreak(memory, clock)
+        assertEquals(2, updated.breaksRemainingToday)
+        assertTrue(updated.breakUntilEpochMs != null)
+    }
+
+    @Test
     fun startBreakDecrementsAndSetsUntil() {
         val clock = FakeClock(0, zone)
         val memory = EnforcementMemory(breaksRemainingToday = 3, breakAllowancePerDay = 3, breakDayKey = "2026-01-01")
