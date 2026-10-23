@@ -468,7 +468,7 @@ class QuietService : AccessibilityService(), CoverActions {
         val fromWindows = runCatching {
             windows.asSequence()
                 .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-                .mapNotNull { it.root }
+                .mapNotNull { if (Build.VERSION.SDK_INT >= 33) it.getRoot(TreeReader.PREFETCH) else it.root }
                 .firstOrNull { it.packageName?.toString() == pkg }
         }.getOrNull()
         return fromWindows ?: rootInActiveWindow?.takeIf { it.packageName?.toString() == pkg }

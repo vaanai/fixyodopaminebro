@@ -1,6 +1,7 @@
 package app.quiet.service
 
 import android.graphics.Rect
+import android.os.Build
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
 import quiet.core.model.UiNode
@@ -10,7 +11,7 @@ import quiet.core.model.UiTree
  * Copies a window's accessibility tree into a [UiTree], with caps so a huge or slow tree
  * can't stall the service. The platform nodes are kept alongside so a match can be clicked.
  */
-class TreeReader(private val maxNodes: Int = 1500, private val maxMillis: Long = 80) {
+class TreeReader(private val maxNodes: Int = 1500, private val maxMillis: Long = 300) {
     class Result(val tree: UiTree, val platform: List<AccessibilityNodeInfo>, val millis: Long)
 
     fun read(root: AccessibilityNodeInfo, packageName: String, screenWidth: Int, screenHeight: Int): Result {
@@ -56,7 +57,8 @@ class TreeReader(private val maxNodes: Int = 1500, private val maxMillis: Long =
             // Push children in reverse so they come off the stack in order.
             for (i in info.childCount - 1 downTo 0) {
                 val child = try {
-                    info.getChild(i)
+                    // Prefetching pulls the subtree into the local cache in a few IPCs instead of one per node.
+                    if (Build.VERSION.SDK_INT >= 33) info.getChild(i, PREFETCH) else info.getChild(i)
                 } catch (_: Exception) {
                     null
                 } ?: continue
@@ -68,5 +70,9 @@ class TreeReader(private val maxNodes: Int = 1500, private val maxMillis: Long =
             platform,
             SystemClock.uptimeMillis() - start,
         )
+    }
+
+    companion object {
+        const val PREFETCH = AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_HYBRID
     }
 }

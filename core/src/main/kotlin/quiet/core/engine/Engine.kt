@@ -158,16 +158,18 @@ class Engine {
             app = raw.app
         }
 
-        if (raw.isUnknown) {
-            // Screens are briefly unreadable mid-transition. Hold the last decision for a moment
-            // so the cover doesn't flicker, then fail open.
-            val held = lastKnown
-            if (held != null && now - lastKnownAt < UNKNOWN_HOLD_MS) {
+        if (raw.isUnknown || raw.truncated) {
+            // Screens are briefly unreadable mid-transition, and a partial read can match the wrong
+            // surface. Hold the last decision for a moment so the cover doesn't flicker, then fail
+            // open (unknown) or go with the partial read (truncated).
+            if (lastKnown != null && now - lastKnownAt < UNKNOWN_HOLD_MS) {
                 return lastDecision.copy(command = null, events = emptyList())
             }
-            lastKnown = null
-            session = null
-            return remember(Decision.NONE)
+            if (raw.isUnknown) {
+                lastKnown = null
+                session = null
+                return remember(Decision.NONE)
+            }
         }
         lastKnown = raw
         lastKnownAt = now
