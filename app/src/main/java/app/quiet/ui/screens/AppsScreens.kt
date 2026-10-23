@@ -142,7 +142,7 @@ fun AppDetailScreen(appId: String) {
     val a = settings.app(appId)
 
     fun update(f: (quiet.core.settings.AppSettings) -> quiet.core.settings.AppSettings) =
-        editor.edit { s -> s.withApp(appId)(f) }
+        editor.edit { s -> s.withApp(appId, f) }
 
     Page {
         ScreenHeader(rules.displayName, onBack = { nav.back() })
