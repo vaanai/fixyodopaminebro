@@ -126,6 +126,14 @@ class EngineTest {
         assertNull(see(ig, blank, advanceMs = 2000).cover)
     }
 
+    @Test fun `a truncated read doesn't override the last full one`() {
+        see(ig, Fixtures.igReelsTab())
+        val partial = Fixtures.igHome().let { UiTree(it.packageName, it.nodes, it.screenWidth, it.screenHeight, truncated = true) }
+        assertNotNull(see(ig, partial, advanceMs = 300).cover)
+        // Still only partial reads after the hold: go with them.
+        assertNull(see(ig, partial, advanceMs = 2000).cover)
+    }
+
     @Test fun `unlock opens the app for its minutes`() {
         see(ig, Fixtures.igReelsTab())
         engine.unlock("instagram", 5, now)
