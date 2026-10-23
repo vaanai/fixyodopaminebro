@@ -613,7 +613,7 @@ class QuietService : AccessibilityService(), CoverActions {
         const val DEBUG_ACTION = "app.quiet.DEBUG"
         private const val TICK_MS = 1_000L
         private const val MAX_TICK_GAP_MS = 5_000L
-        private const val EVAL_THROTTLE_MS = 150L
+        private const val EVAL_THROTTLE_MS = 250L
         private const val EVAL_MIN_DELAY_MS = 40L
 
         @Volatile

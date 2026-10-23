@@ -164,6 +164,32 @@ fun TodayScreen() {
             }
         }
 
+        // Deliberate unlocks from here, so they don't depend on catching the block screen.
+        val focusNow = Engine.isFocusActive(settings, now, ZoneId.systemDefault())
+        val unlocksLeft = settings.unlocksPerDay - today.unlocks
+        if (settings.protectionOn && settings.canUnlock(focusNow) && unlocksLeft > 0 && passes.isEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            QCard {
+                Text("Want to watch a bit?", style = MaterialTheme.typography.titleSmall, color = c.text)
+                Text(
+                    "Uses one of your $unlocksLeft unlocks left today. Then open the app.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textDim,
+                )
+                Spacer(Modifier.height(10.dp))
+                for (app in rules.apps.values.filter { settings.app(it.app).enabled }) {
+                    Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(app.displayName, style = MaterialTheme.typography.bodyMedium, color = c.text, modifier = Modifier.weight(1f))
+                        if (settings.unlockVideos > 0) {
+                            SmallButton("${settings.unlockVideos} more") { QuietService.instance?.unlockFromApp(app.app, videos = true) }
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        SmallButton("${settings.unlockMinutes} min") { QuietService.instance?.unlockFromApp(app.app, videos = false) }
+                    }
+                }
+            }
+        }
+
         FocusCard(settings.focusUntil, now, settings.strictMode, Engine.isFocusActive(settings, now, ZoneId.systemDefault())) { until ->
             editor.edit { it.copy(focusUntil = until) }
         }
