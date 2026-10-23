@@ -3,8 +3,8 @@
   "app": "tiktok",
   "displayName": "TikTok",
   "packages": ["com.zhiliaoapp.musically", "com.ss.android.ugc.trill"],
-  "version": 1,
-  "verified": false,
+  "version": 2,
+  "verified": true,
   "tabBarSignal": "tabBar",
   "signatureIds": [],
   "autoSkipTarget": "inbox",
@@ -50,6 +50,10 @@
     "exploreSelected": [
       { "text": "Explore", "maxBottomFraction": 0.25, "selected": true },
       { "desc": "Explore", "maxBottomFraction": 0.25, "selected": true }
+    ],
+    "liveRoom": [
+      { "id": "ttlive_link_layout_layer_root", "note": "LivePlayActivity; the LIVE icon top-left opens this, there is no LIVE top tab" },
+      { "id": "ttlive_", "minHeightFraction": 0.5 }
     ],
     "liveSelected": [
       { "text": "LIVE", "maxBottomFraction": 0.25, "selected": true },
@@ -98,7 +102,7 @@
     { "surface": "inbox", "all": ["inboxSelected"] },
     { "surface": "profile", "all": ["profileSelected"] },
     { "surface": "friends", "any": ["friendsSelected", "friendsTopSelected"] },
-    { "surface": "live", "all": ["liveSelected"] },
+    { "surface": "live", "any": ["liveSelected", "liveRoom"] },
     { "surface": "shop", "all": ["shopSelected"] },
     { "surface": "explore", "all": ["exploreSelected"] },
     { "surface": "following", "all": ["followingSelected"] },

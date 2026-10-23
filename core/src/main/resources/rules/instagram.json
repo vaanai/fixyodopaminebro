@@ -3,12 +3,12 @@
   "app": "instagram",
   "displayName": "Instagram",
   "packages": ["com.instagram.android"],
-  "version": 1,
-  "verified": false,
+  "version": 2,
+  "verified": true,
   "tabBarSignal": "tabBar",
   "pagerSignal": "reelPager",
   "signatureIds": ["clips_author_username", "clips_caption", "clips_media_attribution", "clips_author_info"],
-  "autoSkipTarget": "home",
+  "autoSkipTarget": "messages",
   "signals": {
     "tabBar": [
       { "idExact": "tab_bar" },
@@ -61,6 +61,9 @@
       { "id": "direct_inbox" },
       { "id": "inbox_thread_list" }
     ],
+    "profilePostsFeed": [
+      { "idExact": "action_bar_title", "text": "Posts", "maxBottomFraction": 0.15, "note": "The Posts feed you get by tapping a grid post on a profile" }
+    ],
     "profileHeader": [
       { "id": "profile_header_container" },
       { "id": "row_profile_header" },
@@ -99,7 +102,7 @@
     { "surface": "messages", "any": ["dmComposer", "dmInbox", "messagesTabSelected"] },
     { "surface": "home", "all": ["homeTabSelected"] },
     { "surface": "explore", "all": ["searchTabSelected"] },
-    { "surface": "profile", "any": ["profileHeader", "profileTabSelected"] }
+    { "surface": "profile", "any": ["profileHeader", "profileTabSelected", "profilePostsFeed"] }
   ],
   "nav": [
     { "id": "messages", "label": "Messages", "signal": "messagesButton" },

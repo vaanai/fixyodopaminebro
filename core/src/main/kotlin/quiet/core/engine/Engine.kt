@@ -337,6 +337,15 @@ class Engine {
             events += EngineEvent(EventType.VIDEO, r.app)
             return
         }
+        if (current.swipes == 0 && now - current.lastSwipeAt < SESSION_SETTLE_MS) {
+            // The open transition scrolls the pager and the first reads may be partial: take the
+            // fingerprint as it settles instead of counting it as a swipe.
+            session = current.copy(
+                signature = r.signature.ifEmpty { current.signature },
+                lastIndex = if (pagerIndex >= 0) pagerIndex else current.lastIndex,
+            )
+            return
+        }
         val recentScroll = scroll != null && now - scroll.atMs <= SWIPE_SCROLL_WINDOW_MS && scroll.atMs >= current.lastSwipeAt
         val sinceLast = now - current.lastSwipeAt
         val indexMoved = pagerIndex >= 0 && current.lastIndex >= 0 && pagerIndex != current.lastIndex
@@ -444,6 +453,7 @@ class Engine {
         const val ORIGIN_MEMORY_MS = 120_000L
         const val SWIPE_SCROLL_WINDOW_MS = 1_500L
         const val MIN_SWIPE_GAP_MS = 800L
+        const val SESSION_SETTLE_MS = 800L
         const val MAX_SKIP_ATTEMPTS = 2
         const val SKIP_RETRY_MS = 1_200L
         const val VIDEO_PASS_MAX_MS = 30 * 60_000L
