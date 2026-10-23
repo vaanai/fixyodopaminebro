@@ -99,6 +99,18 @@ class EngineTest {
         assertEquals(CoverReason.SWIPE_LIMIT, see(ig, Fixtures.igViewer("stranger"), advanceMs = 900).cover?.reason)
     }
 
+    @Test fun `opening a reel doesn't count as a swipe`() {
+        see(ig, Fixtures.igThread())
+        see(ig, Fixtures.igViewer("friend", caption = "loading"))
+        // The open animation scrolls the pager and the full caption arrives a moment later.
+        scroll = ScrollInfo(now + 50, fromPager = true, index = 3)
+        assertNull(see(ig, Fixtures.igViewer("friend"), advanceMs = 400).cover)
+        assertNull(see(ig, Fixtures.igViewer("friend"), advanceMs = 700).cover)
+        // A real swipe afterwards is still caught.
+        scroll = ScrollInfo(now + 50, fromPager = true, index = 4)
+        assertEquals(CoverReason.SWIPE_LIMIT, see(ig, Fixtures.igViewer("stranger"), advanceMs = 900).cover?.reason)
+    }
+
     @Test fun `unlimited swipes setting never covers`() {
         settings = settings.withApp("instagram") { it.copy(viewerSwipes = it.viewerSwipes + (Origin.MESSAGES to -1)) }
         see(ig, Fixtures.igThread())
