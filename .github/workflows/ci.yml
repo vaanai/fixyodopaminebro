@@ -34,7 +34,7 @@ jobs:
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" > /dev/null
 
       - name: Unit tests
-        run: ./gradlew :core:test :app:testDebugUnitTest --no-daemon --stacktrace
+        run: ./gradlew :core:test :app:testDebugUnitTest --no-daemon
 
       - name: Build APK
         run: ./gradlew :app:assembleDebug --no-daemon
