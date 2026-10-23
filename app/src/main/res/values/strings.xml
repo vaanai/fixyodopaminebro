@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Quiet</string>
-    <string name="accessibility_service_description">Quiet reads layout in Instagram and TikTok to pause feeds. It never stores text from other apps.</string>
+    <string name="service_label">Quiet</string>
+    <string name="service_summary">Keeps Reels, For You and Shorts out of the apps you still need.</string>
+    <string name="service_description">Quiet reads the layout of Instagram, TikTok and YouTube to spot endless video feeds and cover them. It also counts how long you spend in social apps. Nothing leaves your phone and no text from other apps is stored.</string>
+    <string name="tile_label">Focus</string>
 </resources>

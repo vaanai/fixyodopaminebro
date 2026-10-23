@@ -47,6 +47,7 @@ class EngineTest {
     }
 
     @Test fun `reels tab is covered above the tab bar`() {
+        settings = settings.withApp("instagram") { it.copy(autoSkipTarget = null) }
         val d = see(ig, Fixtures.igReelsTab())
         val cover = assertNotNull(d.cover)
         assertEquals(CoverReason.BLOCKED, cover.reason)
@@ -196,6 +197,30 @@ class EngineTest {
         assertNotNull(see(tt, Fixtures.ttForYou(), advanceMs = 100).cover)
         // Reaching the inbox clears everything.
         assertNull(see(tt, Fixtures.ttInbox()).cover)
+    }
+
+    @Test fun `instagram reels jumps to messages, coming straight back shows the options`() {
+        val d = see(ig, Fixtures.igReelsTab())
+        assertEquals(Command.Navigate("instagram", "messages"), d.command)
+        see(ig, Fixtures.igThread())
+        val back = see(ig, Fixtures.igReelsTab(), advanceMs = 3000)
+        assertNull(back.command)
+        assertNotNull(back.cover)
+    }
+
+    @Test fun `watch N more unlock counts swipes`() {
+        settings = settings.withApp("instagram") { it.copy(autoSkipTarget = null) }
+        see(ig, Fixtures.igReelsTab("anna"))
+        engine.unlockVideos("instagram", 2, now)
+        assertEquals("2 more", see(ig, Fixtures.igReelsTab("anna")).pill?.text)
+        swipe()
+        assertNull(see(ig, Fixtures.igReelsTab("bert"), advanceMs = 900).cover)
+        swipe()
+        val last = see(ig, Fixtures.igReelsTab("cleo"), advanceMs = 900)
+        assertNull(last.cover)
+        assertEquals("Last one", last.pill?.text)
+        swipe()
+        assertNotNull(see(ig, Fixtures.igReelsTab("dave"), advanceMs = 900).cover)
     }
 
     @Test fun `app daily limit covers the app but keeps chats`() {

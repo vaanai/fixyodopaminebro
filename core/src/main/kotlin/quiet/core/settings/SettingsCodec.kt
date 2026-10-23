@@ -13,6 +13,7 @@ object SettingsCodec {
         put("budgetMinutes", s.budgetMinutes)
         put("unlocksEnabled", s.unlocksEnabled)
         put("unlockMinutes", s.unlockMinutes)
+        put("unlockVideos", s.unlockVideos)
         put("unlockWaitSeconds", s.unlockWaitSeconds)
         put("unlocksPerDay", s.unlocksPerDay)
         put("pauseSeconds", s.pauseSeconds)
@@ -49,6 +50,7 @@ object SettingsCodec {
             budgetMinutes = o.optInt("budgetMinutes", d.budgetMinutes),
             unlocksEnabled = o.optBoolean("unlocksEnabled", d.unlocksEnabled),
             unlockMinutes = o.optInt("unlockMinutes", d.unlockMinutes),
+            unlockVideos = o.optInt("unlockVideos", d.unlockVideos),
             unlockWaitSeconds = o.optInt("unlockWaitSeconds", d.unlockWaitSeconds),
             unlocksPerDay = o.optInt("unlocksPerDay", d.unlocksPerDay),
             pauseSeconds = o.optInt("pauseSeconds", d.pauseSeconds),

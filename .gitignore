@@ -3,7 +3,7 @@
 build/
 local.properties
 .idea/
-*.keystore
 *.jks
 .DS_Store
 android-sdk
+!app/debug.keystore

@@ -88,6 +88,8 @@ data class Settings(
 
     val unlocksEnabled: Boolean = true,
     val unlockMinutes: Int = 5,
+    /** Size of a "watch N more" unlock; 0 turns that option off. */
+    val unlockVideos: Int = 5,
     val unlockWaitSeconds: Int = 15,
     val unlocksPerDay: Int = 3,
 
@@ -170,6 +172,7 @@ object Defaults {
                 "stories" to Mode.ALLOW,
             ),
             viewerSwipes = friendlyViewer,
+            autoSkipTarget = "messages",
         )
         "tiktok" -> AppSettings(
             enabled = true,

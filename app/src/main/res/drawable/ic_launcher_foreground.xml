@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A calm crescent over a still line: the feed, quieted. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="@android:color/white"
-        android:pathData="M54,30 L54,78 M30,54 L78,54"
-        android:strokeWidth="4"
-        android:strokeColor="@android:color/white"/>
+        android:fillColor="#7CE0C3"
+        android:pathData="M60,32 A22,22 0 1,0 76,64 A17,17 0 1,1 60,32 Z" />
+    <path
+        android:strokeColor="#7CE0C3"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M38,78 L70,78" />
 </vector>

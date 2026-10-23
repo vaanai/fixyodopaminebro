@@ -61,6 +61,8 @@ data class Cover(
     val offerBack: Boolean,
     val canUnlock: Boolean,
     val unlockMinutes: Int,
+    /** "Watch N more" unlock size, 0 when that kind of unlock is off. */
+    val unlockVideos: Int,
     val unlockWaitSeconds: Int,
     val unlocksLeft: Int,
     val pauseSeconds: Int,
@@ -144,6 +146,9 @@ class Engine {
     private var landing: Landing? = null
     private var prevCoverKey: String? = null
     private val passes = mutableMapOf<String, Long>()
+    private data class VideoPass(val remaining: Int, val until: Long)
+    private val videoPasses = mutableMapOf<String, VideoPass>()
+    private val lastSkipAt = mutableMapOf<String, Long>()
 
     fun evaluate(input: EngineInput): Decision {
         val now = input.now
@@ -170,7 +175,12 @@ class Engine {
         val surface = raw.surface!!
         val kind = raw.kind!!
         val events = mutableListOf<EngineEvent>()
+        val swipesBefore = session?.takeIf { it.surface == surface }?.swipes
         trackVideo(raw, surface, kind, input.scroll, now, events)
+        val swiped = swipesBefore != null && (session?.swipes ?: 0) > swipesBefore
+        if (swiped) videoPasses[raw.app]?.let { p ->
+            if (p.remaining <= 0) videoPasses.remove(raw.app) else videoPasses[raw.app] = p.copy(remaining = p.remaining - 1)
+        }
         if (landing?.surface != surface) landing = Landing(surface)
         if (kind != SurfaceKind.VIDEO_VIEWER) {
             lastPlaceKind = kind
@@ -196,7 +206,8 @@ class Engine {
         if (!s.protectionOn || !appSet.enabled) return base
 
         val focus = isFocusActive(s, now, input.zone)
-        val unlockedUntil = passes[appId]?.takeIf { it > now }
+        val videoPass = videoPasses[appId]?.takeIf { it.until > now }
+        val unlockedUntil = passes[appId]?.takeIf { it > now } ?: videoPass?.until
         val unlocksLeft = (s.unlocksPerDay - input.today.unlocks).coerceAtLeast(0)
         val label = rules.surface(surface)?.label ?: surface
 
@@ -212,6 +223,7 @@ class Engine {
                 offerBack = offerBack,
                 canUnlock = canUnlock,
                 unlockMinutes = s.unlockMinutes,
+                unlockVideos = s.unlockVideos,
                 unlockWaitSeconds = s.unlockWaitSeconds,
                 unlocksLeft = unlocksLeft,
                 pauseSeconds = s.pauseSeconds,
@@ -222,8 +234,12 @@ class Engine {
             )
         }
 
-        fun passPill(until: Long, prefix: String): Pill? =
-            if (!s.showTimerPill) null else Pill("$prefix · ${formatClock(until - now)}", until - now < 60_000)
+        fun passPill(until: Long, prefix: String): Pill? = when {
+            !s.showTimerPill -> null
+            videoPass != null && passes[appId]?.takeIf { it > now } == null ->
+                Pill(if (videoPass.remaining == 0) "Last one" else "${videoPass.remaining} more", videoPass.remaining == 0)
+            else -> Pill("$prefix · ${formatClock(until - now)}", until - now < 60_000)
+        }
 
         // A whole-app daily limit trumps everything except chats (when chats are kept open).
         val limit = appSet.dailyLimitMinutes
@@ -284,10 +300,17 @@ class Engine {
             ?.takeIf { input.rules.navTarget(it) != null }
         val land = landing
         if (target == null || kind != SurfaceKind.VIDEO_FEED || land == null) return base.copy(cover = cover)
+        // Coming straight back after a skip means you want the options: show the cover instead.
+        val key = "${input.rules.app}.${land.surface}"
+        val lastSkip = lastSkipAt[key]
+        if (land.skipAttempts == 0 && lastSkip != null && input.now - lastSkip < RETURN_SHOWS_COVER_MS) {
+            return base.copy(cover = cover)
+        }
         if (land.skipAttempts >= MAX_SKIP_ATTEMPTS || input.now - land.lastSkipAt < SKIP_RETRY_MS) {
             return base.copy(cover = cover)
         }
         landing = land.copy(skipAttempts = land.skipAttempts + 1, lastSkipAt = input.now)
+        lastSkipAt[key] = input.now
         val events = if (land.skipAttempts == 0) listOf(EngineEvent(EventType.AUTO_SKIP, input.rules.app)) else emptyList()
         return base.copy(cover = cover, command = Command.Navigate(input.rules.app, target), events = events)
     }
@@ -381,6 +404,12 @@ class Engine {
         prevCoverKey = null
     }
 
+    /** "Watch N more": the app's feeds stay open for [count] more swipes (or half an hour, whichever ends first). */
+    fun unlockVideos(app: String, count: Int, now: Long) {
+        videoPasses[app] = VideoPass(count, now + VIDEO_PASS_MAX_MS)
+        prevCoverKey = null
+    }
+
     /** "Continue" on a pause screen opens that one surface for a while. */
     fun continueAfterPause(app: String, surface: String, minutes: Int, now: Long) {
         passes["$app.$surface"] = now + minutes * 60_000L
@@ -389,9 +418,13 @@ class Engine {
     /** Ends any unlock early ("I'm done"). */
     fun relock(app: String) {
         passes.keys.removeAll { it == app || it.startsWith("$app.") }
+        videoPasses.remove(app)
     }
 
-    fun unlockedUntil(app: String, now: Long): Long? = passes[app]?.takeIf { it > now }
+    fun unlockedUntil(app: String, now: Long): Long? =
+        passes[app]?.takeIf { it > now } ?: videoPasses[app]?.takeIf { it.until > now }?.until
+
+    fun videosLeft(app: String, now: Long): Int? = videoPasses[app]?.takeIf { it.until > now }?.remaining
 
     fun snapshot(): EngineSnapshot = EngineSnapshot(
         app = app,
@@ -400,7 +433,7 @@ class Engine {
         origin = session?.origin,
         swipes = session?.swipes ?: 0,
         signature = session?.signature ?: lastKnown?.signature.orEmpty(),
-        passes = passes.toMap(),
+        passes = passes.toMap() + videoPasses.mapValues { it.value.until },
         coverKey = prevCoverKey,
     )
 
@@ -411,6 +444,8 @@ class Engine {
         const val MIN_SWIPE_GAP_MS = 800L
         const val MAX_SKIP_ATTEMPTS = 2
         const val SKIP_RETRY_MS = 1_200L
+        const val VIDEO_PASS_MAX_MS = 30 * 60_000L
+        const val RETURN_SHOWS_COVER_MS = 20_000L
 
         fun isFocusActive(s: Settings, now: Long, zone: ZoneId): Boolean {
             if (s.focusUntil > now) return true
