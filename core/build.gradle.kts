@@ -7,7 +7,9 @@ kotlin {
 }
 
 dependencies {
-    implementation("org.json:json:20240303")
+    // Android ships org.json; on the JVM (tests) this artifact stands in for it.
+    compileOnly("org.json:json:20240303")
+    testImplementation("org.json:json:20240303")
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)
 }

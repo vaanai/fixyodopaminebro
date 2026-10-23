@@ -1,75 +1,109 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "app": "instagram",
   "displayName": "Instagram",
   "packages": ["com.instagram.android"],
-  "messagesTabLabels": ["Messages", "Direct"],
+  "version": 1,
   "verified": false,
+  "tabBarSignal": "tabBar",
+  "pagerSignal": "reelPager",
+  "signatureIds": ["clips_author_username", "clips_caption", "clips_media_attribution", "clips_author_info"],
+  "autoSkipTarget": "home",
+  "signals": {
+    "tabBar": [
+      { "idExact": "tab_bar" },
+      { "id": "feed_tab", "minTopFraction": 0.75 },
+      { "desc": "Home", "minTopFraction": 0.8 }
+    ],
+    "homeTabSelected": [
+      { "idExact": "feed_tab", "selected": true },
+      { "desc": "Home", "minTopFraction": 0.8, "selected": true }
+    ],
+    "reelsTabSelected": [
+      { "idExact": "clips_tab", "selected": true },
+      { "desc": "Reels", "minTopFraction": 0.8, "selected": true }
+    ],
+    "searchTabSelected": [
+      { "idExact": "search_tab", "selected": true },
+      { "desc": "Search and explore", "minTopFraction": 0.8, "selected": true },
+      { "desc": "Search and Explore", "minTopFraction": 0.8, "selected": true },
+      { "desc": "Search", "minTopFraction": 0.8, "selected": true }
+    ],
+    "profileTabSelected": [
+      { "idExact": "profile_tab", "selected": true },
+      { "desc": "Profile", "minTopFraction": 0.8, "selected": true }
+    ],
+    "messagesTabSelected": [
+      { "idExact": "direct_tab", "selected": true },
+      { "desc": "Messages", "minTopFraction": 0.8, "selected": true },
+      { "desc": "Message", "minTopFraction": 0.8, "selected": true },
+      { "desc": "Direct", "minTopFraction": 0.8, "selected": true }
+    ],
+    "reelPager": [
+      { "id": "clips_viewer_view_pager" },
+      { "id": "clips_viewer_pager" },
+      { "id": "clips_viewer", "minHeightFraction": 0.5 },
+      { "id": "clips_video_container", "minHeightFraction": 0.5 }
+    ],
+    "storyViewer": [
+      { "id": "reel_viewer_root" },
+      { "id": "reel_viewer_container" },
+      { "id": "reel_viewer_media_container" },
+      { "id": "reel_viewer_texture_view" }
+    ],
+    "dmComposer": [
+      { "id": "row_thread_composer_edittext" },
+      { "id": "thread_composer", "editable": true },
+      { "editable": true, "hintContains": "Message", "note": "IG thread composer hint is 'Message...'", "cls": "EditText" }
+    ],
+    "dmInbox": [
+      { "id": "inbox_refreshable_thread_list" },
+      { "id": "direct_inbox" },
+      { "id": "inbox_thread_list" }
+    ],
+    "profileHeader": [
+      { "id": "profile_header_container" },
+      { "id": "row_profile_header" },
+      { "id": "profile_header_actions_top_row" }
+    ],
+    "homeTab": [
+      { "idExact": "feed_tab" },
+      { "desc": "Home", "minTopFraction": 0.8 }
+    ],
+    "messagesButton": [
+      { "idExact": "direct_tab" },
+      { "id": "action_bar_inbox_button" },
+      { "desc": "Messenger" },
+      { "desc": "Direct" },
+      { "desc": "Messages", "minTopFraction": 0.8 },
+      { "desc": "Message", "minTopFraction": 0.8 }
+    ],
+    "profileTab": [
+      { "idExact": "profile_tab" },
+      { "desc": "Profile", "minTopFraction": 0.8 }
+    ]
+  },
   "surfaces": [
-    {
-      "id": "dm_inbox",
-      "label": "Messages",
-      "kind": "protected",
-      "defaultPolicy": "ALLOW",
-      "enforce": true,
-      "match": { "selectedTab": ["Messages", "Direct"] }
-    },
-    {
-      "id": "dm_thread",
-      "label": "Thread",
-      "kind": "protected",
-      "defaultPolicy": "ALLOW",
-      "enforce": true,
-      "match": { "hasLabel": ["quiet.synthetic.instagram.dm_thread"] },
-      "notes": "Sentinel until snapshot confirms thread markers"
-    },
-    {
-      "id": "home_feed",
-      "label": "Home feed",
-      "kind": "feed",
-      "defaultPolicy": "BLOCK",
-      "enforce": true,
-      "match": { "selectedTab": ["Home"] }
-    },
-    {
-      "id": "reels",
-      "label": "Reels",
-      "kind": "feed",
-      "defaultPolicy": "BLOCK",
-      "enforce": true,
-      "match": { "selectedTab": ["Reels"] }
-    },
-    {
-      "id": "explore",
-      "label": "Explore",
-      "kind": "feed",
-      "defaultPolicy": "GATE",
-      "enforce": false,
-      "match": { "hasLabel": ["quiet.synthetic.instagram.explore"] }
-    },
-    {
-      "id": "stories",
-      "label": "Stories",
-      "kind": "feed",
-      "defaultPolicy": "GATE",
-      "enforce": false,
-      "match": { "hasLabel": ["quiet.synthetic.instagram.stories"] }
-    },
-    {
-      "id": "dm_shared_reel",
-      "label": "Friends' reels",
-      "kind": "shared_media",
-      "defaultPolicy": "BLOCK",
-      "enforce": false,
-      "match": { "hasLabel": ["quiet.synthetic.instagram.dm_shared_reel"] }
-    },
-    {
-      "id": "profile",
-      "label": "Profile",
-      "kind": "other",
-      "defaultPolicy": "ALLOW",
-      "enforce": false,
-      "match": { "hasLabel": ["quiet.synthetic.instagram.profile"] }
-    }
+    { "id": "reels", "label": "Reels tab", "kind": "VIDEO_FEED", "description": "The endless Reels feed." },
+    { "id": "reel_viewer", "label": "Single reels", "kind": "VIDEO_VIEWER", "description": "A reel opened from a chat, a profile, your feed or Explore." },
+    { "id": "home", "label": "Home feed", "kind": "FEED", "description": "Posts from people you follow, plus suggestions." },
+    { "id": "explore", "label": "Search & Explore", "kind": "EXPLORE", "description": "The Explore grid and search." },
+    { "id": "stories", "label": "Stories", "kind": "STORIES", "description": "Stories from people you follow." },
+    { "id": "messages", "label": "Messages", "kind": "MESSAGES", "description": "Your inbox and chats. Never blocked." },
+    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's." }
+  ],
+  "rules": [
+    { "surface": "reels", "all": ["reelsTabSelected"] },
+    { "surface": "stories", "all": ["storyViewer"] },
+    { "surface": "reel_viewer", "all": ["reelPager"] },
+    { "surface": "messages", "any": ["dmComposer", "dmInbox", "messagesTabSelected"] },
+    { "surface": "home", "all": ["homeTabSelected"] },
+    { "surface": "explore", "all": ["searchTabSelected"] },
+    { "surface": "profile", "any": ["profileHeader", "profileTabSelected"] }
+  ],
+  "nav": [
+    { "id": "messages", "label": "Messages", "signal": "messagesButton" },
+    { "id": "home", "label": "Home feed", "signal": "homeTab" },
+    { "id": "profile", "label": "Profile", "signal": "profileTab" }
   ]
 }
