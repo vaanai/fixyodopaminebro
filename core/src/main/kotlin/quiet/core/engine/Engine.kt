@@ -113,6 +113,8 @@ data class EngineSnapshot(
     val signature: String,
     val passes: Map<String, Long>,
     val coverKey: String?,
+    /** Videos left on "watch N more" unlocks, per app. */
+    val videosLeft: Map<String, Int> = emptyMap(),
 )
 
 /**
@@ -184,10 +186,21 @@ class Engine {
         val swipesBefore = session?.takeIf { it.surface == surface }?.swipes
         trackVideo(raw, surface, kind, input.scroll, now, events)
         val swiped = swipesBefore != null && (session?.swipes ?: 0) > swipesBefore
+        var passEnded = false
         if (swiped) videoPasses[raw.app]?.let { p ->
-            if (p.remaining <= 0) videoPasses.remove(raw.app) else videoPasses[raw.app] = p.copy(remaining = p.remaining - 1)
+            if (p.remaining <= 0) {
+                videoPasses.remove(raw.app)
+                passEnded = true
+            } else {
+                videoPasses[raw.app] = p.copy(remaining = p.remaining - 1)
+            }
         }
+        passes[raw.app]?.let { if (it <= now) { passes.remove(raw.app); passEnded = true } }
+        videoPasses[raw.app]?.let { if (it.until <= now) { videoPasses.remove(raw.app); passEnded = true } }
         if (landing?.surface != surface) landing = Landing(surface)
+        // An unlock running out while you watch shows the cover where you are instead of yanking
+        // you elsewhere; skipping resumes on the next fresh landing.
+        if (passEnded) landing = landing?.copy(skipAttempts = MAX_SKIP_ATTEMPTS)
         if (kind != SurfaceKind.VIDEO_VIEWER) {
             lastPlaceKind = kind
             lastPlaceAt = now
@@ -310,6 +323,8 @@ class Engine {
         val key = "${input.rules.app}.${land.surface}"
         val lastSkip = lastSkipAt[key]
         if (land.skipAttempts == 0 && lastSkip != null && input.now - lastSkip < RETURN_SHOWS_COVER_MS) {
+            // Stay on the cover for this landing, so a pending unlock wait isn't cut short by a skip.
+            landing = land.copy(skipAttempts = MAX_SKIP_ATTEMPTS)
             return base.copy(cover = cover)
         }
         if (land.skipAttempts >= MAX_SKIP_ATTEMPTS || input.now - land.lastSkipAt < SKIP_RETRY_MS) {
@@ -354,7 +369,15 @@ class Engine {
         val sinceLast = now - current.lastSwipeAt
         val indexMoved = pagerIndex >= 0 && current.lastIndex >= 0 && pagerIndex != current.lastIndex
         val sigMoved = r.signature.isNotEmpty() && current.signature.isNotEmpty() && r.signature != current.signature
-        val swiped = recentScroll && sinceLast >= MIN_SWIPE_GAP_MS && (indexMoved || sigMoved)
+        // The pager index is the reliable signal when there is one. The fingerprint also changes as
+        // a new video settles (captions, counts loading), so on its own it needs a longer gap.
+        val swiped = recentScroll && when {
+            // Once the pager has reported where it is, only a move of the pager counts.
+            current.lastIndex >= 0 -> indexMoved && sinceLast >= MIN_SWIPE_GAP_MS
+            // First swipe that reports an index: the fingerprint decides, then the index takes over.
+            pagerIndex >= 0 -> sigMoved && sinceLast >= MIN_SWIPE_GAP_MS
+            else -> sigMoved && sinceLast >= SIGNATURE_SWIPE_GAP_MS
+        }
         session = if (swiped) {
             events += EngineEvent(EventType.VIDEO, r.app)
             current.copy(
@@ -450,6 +473,7 @@ class Engine {
         signature = session?.signature ?: lastKnown?.signature.orEmpty(),
         passes = passes.toMap() + videoPasses.mapValues { it.value.until },
         coverKey = prevCoverKey,
+        videosLeft = videoPasses.mapValues { it.value.remaining },
     )
 
     companion object {
@@ -459,6 +483,7 @@ class Engine {
         const val MIN_SWIPE_GAP_MS = 800L
         const val SESSION_SETTLE_MS = 800L
         const val SKIP_SETTLE_MS = 300L
+        const val SIGNATURE_SWIPE_GAP_MS = 1_200L
         const val MAX_SKIP_ATTEMPTS = 2
         const val SKIP_RETRY_MS = 1_200L
         const val VIDEO_PASS_MAX_MS = 30 * 60_000L

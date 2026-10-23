@@ -336,6 +336,8 @@ fun SmallButton(text: String, accent: Boolean = false, onClick: () -> Unit) {
         text,
         style = MaterialTheme.typography.labelLarge,
         color = if (accent) c.onAccent else c.text,
+        maxLines = 1,
+        softWrap = false,
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
             .background(if (accent) c.accent else c.surfaceHigh)

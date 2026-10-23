@@ -42,8 +42,11 @@ class EngineTest {
         return engine.evaluate(EngineInput(now, zone, rules, Detector.read(rules, tree), settings, today, scroll))
     }
 
+    private var pagerIndex = 0
+
     private fun swipe() {
-        scroll = ScrollInfo(now + 50, fromPager = true)
+        pagerIndex++
+        scroll = ScrollInfo(now + 50, fromPager = true, index = pagerIndex)
     }
 
     @Test fun `reels tab is covered above the tab bar`() {
@@ -257,6 +260,40 @@ class EngineTest {
         assertEquals("Last one", last.pill?.text)
         swipe()
         assertNotNull(see(ig, Fixtures.igReelsTab("dave"), advanceMs = 900).cover)
+    }
+
+    @Test fun `a video settling after a swipe isn't counted again`() {
+        settings = settings.withApp("instagram") { it.copy(autoSkipTarget = null) }
+        see(ig, Fixtures.igReelsTab("anna"))
+        engine.unlockVideos("instagram", 2, now)
+        see(ig, Fixtures.igReelsTab("anna"), advanceMs = 900)
+        swipe()
+        assertEquals("1 more", see(ig, Fixtures.igReelsTab("bert"), advanceMs = 900).pill?.text)
+        // The pager settles on the same item while the caption loads.
+        scroll = ScrollInfo(now + 50, fromPager = true, index = pagerIndex)
+        assertEquals("1 more", see(ig, Fixtures.igReelsTab("bert"), advanceMs = 900).pill?.text)
+        scroll = ScrollInfo(now + 50, fromPager = true)
+        assertEquals("1 more", see(ig, Fixtures.igReelsTab("bert_loaded"), advanceMs = 900).pill?.text)
+    }
+
+    @Test fun `an unlock running out mid-feed shows the cover instead of skipping`() {
+        see(ig, Fixtures.igReelsTab("anna"))
+        see(ig, Fixtures.igThread())
+        engine.unlockVideos("instagram", 0, now)
+        assertNull(see(ig, Fixtures.igReelsTab("anna"), advanceMs = 30_000).cover)
+        swipe()
+        val ended = see(ig, Fixtures.igReelsTab("bert"), advanceMs = 900)
+        assertNotNull(ended.cover)
+        assertNull(ended.command)
+        assertNull(see(ig, Fixtures.igReelsTab("bert"), advanceMs = 5_000).command)
+    }
+
+    @Test fun `the options cover stays put while you wait to unlock`() {
+        see(ig, Fixtures.igReelsTab())
+        see(ig, Fixtures.igThread())
+        assertNull(see(ig, Fixtures.igReelsTab(), advanceMs = 3000).command)
+        // Past the 20 s return window, still sitting on the cover: no skip from under it.
+        for (i in 1..10) assertNull(see(ig, Fixtures.igReelsTab(), advanceMs = 3000).command, "tick $i")
     }
 
     @Test fun `app daily limit covers the app but keeps chats`() {

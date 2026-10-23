@@ -74,8 +74,22 @@ fun summary(rules: AppRules, s: Settings): String {
     val blocked = rules.surfaces.filter { it.kind != SurfaceKind.MESSAGES && it.kind != SurfaceKind.VIDEO_VIEWER }
         .filter { s.modeFor(rules.app, it.id) != Mode.ALLOW }
         .joinToString { "${it.label} ${s.modeFor(rules.app, it.id).label.lowercase()}" }
-    val chat = swipesLabel(s.viewerSwipesFor(rules.app, Origin.MESSAGES)).lowercase()
-    return listOf(blocked.ifEmpty { "Everything allowed" }, "shared videos: $chat").joinToString(" · ")
+    return blocked.ifEmpty { "Everything allowed" }
+}
+
+/** Where single videos can be opened from in this app, so the swipe settings only list real places. */
+fun origins(rules: AppRules): List<Origin> {
+    val kinds = rules.surfaces.map { it.kind }.toSet()
+    return Origin.entries.filter { o ->
+        when (o) {
+            Origin.MESSAGES -> SurfaceKind.MESSAGES in kinds
+            Origin.PROFILE -> SurfaceKind.PROFILE in kinds
+            Origin.FEED -> SurfaceKind.FEED in kinds
+            Origin.EXPLORE -> SurfaceKind.EXPLORE in kinds
+            Origin.STORIES -> SurfaceKind.STORIES in kinds
+            Origin.OTHER -> true
+        }
+    }
 }
 
 @Composable
@@ -171,16 +185,16 @@ fun AppDetailScreen(appId: String) {
             }
         }
 
-        SectionTitle("Videos people send you")
+        SectionTitle("Single videos")
         QCard {
             Text(
-                "Opening a single video always works. These set how far you can swipe past it before Quiet steps in.",
+                "Opening one video from a chat, a profile or search always works. These set how far you can swipe on from it before Quiet steps in.",
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textDim,
             )
             Spacer(Modifier.height(6.dp))
             val options = listOf(0, 1, 2, 3, 5, 10, 20, UNLIMITED)
-            for (origin in Origin.entries) {
+            for (origin in origins(rules)) {
                 StepperRow(
                     origin.label,
                     settings.viewerSwipesFor(appId, origin),
