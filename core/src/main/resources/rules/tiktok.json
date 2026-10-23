@@ -1,67 +1,116 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "app": "tiktok",
   "displayName": "TikTok",
-  "packages": ["com.zhiliaoapp.musically"],
-  "messagesTabLabels": ["Inbox"],
+  "packages": ["com.zhiliaoapp.musically", "com.ss.android.ugc.trill"],
+  "version": 1,
   "verified": false,
+  "tabBarSignal": "tabBar",
+  "signatureIds": [],
+  "autoSkipTarget": "inbox",
+  "signals": {
+    "tabBar": [
+      { "text": "Inbox", "minTopFraction": 0.8 },
+      { "desc": "Inbox", "minTopFraction": 0.8 },
+      { "text": "Home", "minTopFraction": 0.8 },
+      { "desc": "Home", "minTopFraction": 0.8 }
+    ],
+    "homeSelected": [
+      { "text": "Home", "minTopFraction": 0.8, "selected": true },
+      { "desc": "Home", "minTopFraction": 0.8, "selected": true }
+    ],
+    "friendsSelected": [
+      { "text": "Friends", "minTopFraction": 0.8, "selected": true },
+      { "desc": "Friends", "minTopFraction": 0.8, "selected": true }
+    ],
+    "inboxSelected": [
+      { "text": "Inbox", "minTopFraction": 0.8, "selected": true },
+      { "desc": "Inbox", "minTopFraction": 0.8, "selected": true }
+    ],
+    "profileSelected": [
+      { "text": "Profile", "minTopFraction": 0.8, "selected": true },
+      { "desc": "Profile", "minTopFraction": 0.8, "selected": true }
+    ],
+    "topTabs": [
+      { "text": "For You", "maxBottomFraction": 0.25 },
+      { "desc": "For You", "maxBottomFraction": 0.25 }
+    ],
+    "forYouSelected": [
+      { "text": "For You", "maxBottomFraction": 0.25, "selected": true },
+      { "desc": "For You", "maxBottomFraction": 0.25, "selected": true }
+    ],
+    "followingSelected": [
+      { "text": "Following", "maxBottomFraction": 0.25, "selected": true },
+      { "desc": "Following", "maxBottomFraction": 0.25, "selected": true }
+    ],
+    "friendsTopSelected": [
+      { "text": "Friends", "maxBottomFraction": 0.25, "selected": true },
+      { "desc": "Friends", "maxBottomFraction": 0.25, "selected": true }
+    ],
+    "exploreSelected": [
+      { "text": "Explore", "maxBottomFraction": 0.25, "selected": true },
+      { "desc": "Explore", "maxBottomFraction": 0.25, "selected": true }
+    ],
+    "liveSelected": [
+      { "text": "LIVE", "maxBottomFraction": 0.25, "selected": true },
+      { "desc": "LIVE", "maxBottomFraction": 0.25, "selected": true }
+    ],
+    "shopSelected": [
+      { "text": "Shop", "maxBottomFraction": 0.25, "selected": true },
+      { "desc": "Shop", "maxBottomFraction": 0.25, "selected": true }
+    ],
+    "videoActions": [
+      { "descStartsWith": "Like video" },
+      { "descContains": "Read or add comments" },
+      { "descStartsWith": "Share video" },
+      { "descContains": "Add or remove this video from Favorites" },
+      { "labelRegex": "^Like\\b.*\\d", "note": "Like button with a count, e.g. 'Like 12.3K'" }
+    ],
+    "dmComposer": [
+      { "editable": true, "hintContains": "message" },
+      { "cls": "EditText", "hintContains": "Send a message" }
+    ],
+    "inboxTab": [
+      { "text": "Inbox", "minTopFraction": 0.8 },
+      { "desc": "Inbox", "minTopFraction": 0.8 }
+    ],
+    "friendsTab": [
+      { "text": "Friends", "minTopFraction": 0.8 },
+      { "desc": "Friends", "minTopFraction": 0.8 }
+    ],
+    "profileTab": [
+      { "text": "Profile", "minTopFraction": 0.8 },
+      { "desc": "Profile", "minTopFraction": 0.8 }
+    ]
+  },
   "surfaces": [
-    {
-      "id": "dm_inbox",
-      "label": "Inbox",
-      "kind": "protected",
-      "defaultPolicy": "ALLOW",
-      "enforce": true,
-      "match": { "selectedTab": ["Inbox"] }
-    },
-    {
-      "id": "dm_thread",
-      "label": "Thread",
-      "kind": "protected",
-      "defaultPolicy": "ALLOW",
-      "enforce": true,
-      "match": { "hasLabel": ["quiet.synthetic.tiktok.dm_thread"] },
-      "notes": "Sentinel until snapshot confirms thread markers"
-    },
-    {
-      "id": "for_you",
-      "label": "For You",
-      "kind": "feed",
-      "defaultPolicy": "BLOCK",
-      "enforce": true,
-      "match": { "selectedTab": ["For You"] }
-    },
-    {
-      "id": "following",
-      "label": "Following",
-      "kind": "feed",
-      "defaultPolicy": "BLOCK",
-      "enforce": true,
-      "match": { "selectedTab": ["Following"] }
-    },
-    {
-      "id": "discover",
-      "label": "Discover",
-      "kind": "feed",
-      "defaultPolicy": "GATE",
-      "enforce": false,
-      "match": { "hasLabel": ["quiet.synthetic.tiktok.discover"] }
-    },
-    {
-      "id": "dm_shared_video",
-      "label": "Friends' reels",
-      "kind": "shared_media",
-      "defaultPolicy": "BLOCK",
-      "enforce": false,
-      "match": { "hasLabel": ["quiet.synthetic.tiktok.dm_shared_video"] }
-    },
-    {
-      "id": "profile",
-      "label": "Profile",
-      "kind": "other",
-      "defaultPolicy": "ALLOW",
-      "enforce": false,
-      "match": { "hasLabel": ["quiet.synthetic.tiktok.profile"] }
-    }
+    { "id": "for_you", "label": "For You", "kind": "VIDEO_FEED", "description": "The main algorithmic feed TikTok opens on." },
+    { "id": "following", "label": "Following", "kind": "VIDEO_FEED", "description": "Videos from accounts you follow." },
+    { "id": "friends", "label": "Friends", "kind": "VIDEO_FEED", "description": "Videos from mutual friends." },
+    { "id": "explore", "label": "Explore", "kind": "EXPLORE", "description": "The Explore tab at the top of Home." },
+    { "id": "live", "label": "LIVE", "kind": "LIVE", "description": "Live streams." },
+    { "id": "shop", "label": "Shop", "kind": "OTHER", "description": "TikTok Shop." },
+    { "id": "video_viewer", "label": "Single videos", "kind": "VIDEO_VIEWER", "description": "A video opened from a chat, a profile or search." },
+    { "id": "inbox", "label": "Inbox", "kind": "MESSAGES", "description": "Your inbox and chats. Never blocked." },
+    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's." }
+  ],
+  "rules": [
+    { "surface": "inbox", "all": ["inboxSelected"] },
+    { "surface": "profile", "all": ["profileSelected"] },
+    { "surface": "friends", "any": ["friendsSelected", "friendsTopSelected"] },
+    { "surface": "live", "all": ["liveSelected"] },
+    { "surface": "shop", "all": ["shopSelected"] },
+    { "surface": "explore", "all": ["exploreSelected"] },
+    { "surface": "following", "all": ["followingSelected"] },
+    { "surface": "for_you", "all": ["forYouSelected"] },
+    { "surface": "inbox", "all": ["dmComposer"] },
+    { "surface": "for_you", "all": ["topTabs", "videoActions"] },
+    { "surface": "for_you", "all": ["homeSelected"] },
+    { "surface": "video_viewer", "all": ["videoActions"], "none": ["topTabs"] }
+  ],
+  "nav": [
+    { "id": "inbox", "label": "Inbox", "signal": "inboxTab" },
+    { "id": "friends", "label": "Friends", "signal": "friendsTab" },
+    { "id": "profile", "label": "Profile", "signal": "profileTab" }
   ]
 }

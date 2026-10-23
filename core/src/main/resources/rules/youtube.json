@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 2,
+  "app": "youtube",
+  "displayName": "YouTube",
+  "packages": ["com.google.android.youtube"],
+  "version": 1,
+  "verified": false,
+  "tabBarSignal": "tabBar",
+  "pagerSignal": "shortsPlayer",
+  "signatureIds": ["reel_channel_name", "reel_multi_format_title", "shorts_video_title"],
+  "autoSkipTarget": "home",
+  "signals": {
+    "tabBar": [
+      { "id": "pivot_bar" },
+      { "desc": "Home", "minTopFraction": 0.8 },
+      { "text": "Home", "minTopFraction": 0.8 }
+    ],
+    "shortsTabSelected": [
+      { "desc": "Shorts", "minTopFraction": 0.8, "selected": true },
+      { "text": "Shorts", "minTopFraction": 0.8, "selected": true }
+    ],
+    "homeSelected": [
+      { "desc": "Home", "minTopFraction": 0.8, "selected": true },
+      { "text": "Home", "minTopFraction": 0.8, "selected": true }
+    ],
+    "subscriptionsSelected": [
+      { "desc": "Subscriptions", "minTopFraction": 0.8, "selected": true },
+      { "text": "Subscriptions", "minTopFraction": 0.8, "selected": true }
+    ],
+    "shortsPlayer": [
+      { "id": "reel_recycler" },
+      { "id": "reel_player_page_container" },
+      { "id": "reel_watch_player" },
+      { "id": "shorts_player", "minHeightFraction": 0.5 }
+    ],
+    "homeTab": [
+      { "desc": "Home", "minTopFraction": 0.8 },
+      { "text": "Home", "minTopFraction": 0.8 }
+    ],
+    "subscriptionsTab": [
+      { "desc": "Subscriptions", "minTopFraction": 0.8 },
+      { "text": "Subscriptions", "minTopFraction": 0.8 }
+    ]
+  },
+  "surfaces": [
+    { "id": "shorts", "label": "Shorts tab", "kind": "VIDEO_FEED", "description": "The endless Shorts feed." },
+    { "id": "shorts_viewer", "label": "Single Shorts", "kind": "VIDEO_VIEWER", "description": "A Short opened from Home, a channel or a link." },
+    { "id": "home", "label": "Home", "kind": "FEED", "description": "The YouTube home feed." },
+    { "id": "subscriptions", "label": "Subscriptions", "kind": "FEED", "description": "Channels you subscribe to." }
+  ],
+  "rules": [
+    { "surface": "shorts", "all": ["shortsTabSelected"] },
+    { "surface": "shorts_viewer", "all": ["shortsPlayer"] },
+    { "surface": "home", "all": ["homeSelected"] },
+    { "surface": "subscriptions", "all": ["subscriptionsSelected"] }
+  ],
+  "nav": [
+    { "id": "home", "label": "Home", "signal": "homeTab" },
+    { "id": "subscriptions", "label": "Subscriptions", "signal": "subscriptionsTab" }
+  ]
+}
