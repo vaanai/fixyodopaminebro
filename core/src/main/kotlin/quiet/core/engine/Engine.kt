@@ -158,7 +158,11 @@ class Engine {
             app = raw.app
         }
 
-        if (raw.isUnknown || raw.truncated) {
+        // A partial read that already shows a chat is trusted: chats are never covered.
+        if (raw.isUnknown || (raw.truncated && raw.kind != SurfaceKind.MESSAGES)) {
+            // An unreadable screen after a skip means the skip went somewhere: a later landing on
+            // the same feed is a return, not a retry.
+            landing?.let { if (raw.isUnknown && it.skipAttempts > 0 && now - it.lastSkipAt > SKIP_SETTLE_MS) landing = null }
             // Screens are briefly unreadable mid-transition, and a partial read can match the wrong
             // surface. Hold the last decision for a moment so the cover doesn't flicker, then fail
             // open (unknown) or go with the partial read (truncated).
@@ -454,6 +458,7 @@ class Engine {
         const val SWIPE_SCROLL_WINDOW_MS = 1_500L
         const val MIN_SWIPE_GAP_MS = 800L
         const val SESSION_SETTLE_MS = 800L
+        const val SKIP_SETTLE_MS = 300L
         const val MAX_SKIP_ATTEMPTS = 2
         const val SKIP_RETRY_MS = 1_200L
         const val VIDEO_PASS_MAX_MS = 30 * 60_000L

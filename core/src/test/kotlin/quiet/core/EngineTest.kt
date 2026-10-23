@@ -228,6 +228,22 @@ class EngineTest {
         assertNotNull(back.cover)
     }
 
+    @Test fun `coming back after a skip shows the options even if the chats screen never read`() {
+        assertEquals(Command.Navigate("instagram", "messages"), see(ig, Fixtures.igReelsTab()).command)
+        val blank = Screen(Fixtures.IG).build()
+        see(ig, blank, advanceMs = 500)
+        see(ig, blank, advanceMs = 2000)
+        val back = see(ig, Fixtures.igReelsTab(), advanceMs = 3000)
+        assertNull(back.command)
+        assertNotNull(back.cover)
+    }
+
+    @Test fun `a partial read of a chat is never held under a cover`() {
+        see(ig, Fixtures.igReelsTab())
+        val thread = Fixtures.igThread().let { UiTree(it.packageName, it.nodes, it.screenWidth, it.screenHeight, truncated = true) }
+        assertNull(see(ig, thread, advanceMs = 300).cover)
+    }
+
     @Test fun `watch N more unlock counts swipes`() {
         settings = settings.withApp("instagram") { it.copy(autoSkipTarget = null) }
         see(ig, Fixtures.igReelsTab("anna"))

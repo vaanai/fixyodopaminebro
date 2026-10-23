@@ -110,7 +110,7 @@
     { "surface": "inbox", "all": ["dmComposer"] },
     { "surface": "for_you", "all": ["topTabs", "videoActions"] },
     { "surface": "for_you", "all": ["homeSelected"] },
-    { "surface": "video_viewer", "all": ["videoActions"], "none": ["topTabs"] }
+    { "surface": "video_viewer", "all": ["videoActions"], "none": ["topTabs", "homeSelected", "friendsSelected", "friendsTopSelected"] }
   ],
   "nav": [
     { "id": "inbox", "label": "Inbox", "signal": "inboxTab" },
