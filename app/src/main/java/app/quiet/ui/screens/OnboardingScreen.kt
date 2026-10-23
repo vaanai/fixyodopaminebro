@@ -126,7 +126,7 @@ private fun Welcome() {
     Text("Keep the apps.\nLose the scroll.", style = MaterialTheme.typography.displayMedium, color = c.text)
     Spacer(Modifier.height(16.dp))
     Text(
-        "Quiet blocks the endless parts of Instagram, TikTok and YouTube: Reels, For You, Shorts. Your chats, friends and the videos people send you keep working.",
+        "Quiet blocks the endless parts of Instagram, TikTok and YouTube: Reels, For You, Shorts. Your chats, your friends' posts and the videos people send you keep working.",
         style = MaterialTheme.typography.bodyLarge,
         color = c.textDim,
     )

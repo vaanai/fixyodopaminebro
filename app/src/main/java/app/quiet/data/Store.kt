@@ -111,7 +111,10 @@ class Store(private val context: Context) {
                 }
             }
         }
+        // A skip shows the cover for a moment too: log it once, as the skip.
+        val skipped = events.any { it.type == EventType.AUTO_SKIP }
         for (e in events) {
+            if (skipped && e.type == EventType.COVER_SHOWN) continue
             val text = when (e.type) {
                 EventType.VIDEO -> null
                 EventType.AUTO_SKIP -> "Skipped the feed"
@@ -119,7 +122,7 @@ class Store(private val context: Context) {
                     CoverReason.BLOCKED -> "Blocked a feed"
                     CoverReason.BUDGET_DONE -> "Allowance used up"
                     CoverReason.FOCUS -> "Blocked during focus"
-                    CoverReason.SWIPE_LIMIT -> "Stopped a swipe past a shared video"
+                    CoverReason.SWIPE_LIMIT -> "Stopped a swipe past a single video"
                     CoverReason.APP_LIMIT -> "Daily limit reached"
                     CoverReason.PAUSE -> "Paused before a feed"
                     null -> null

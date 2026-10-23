@@ -88,10 +88,10 @@
     ]
   },
   "surfaces": [
-    { "id": "for_you", "label": "For You", "kind": "VIDEO_FEED", "description": "The main algorithmic feed TikTok opens on." },
+    { "id": "for_you", "label": "For You", "kind": "VIDEO_FEED", "description": "The main algorithmic feed TikTok opens on, plus the nearby (local) tab." },
     { "id": "following", "label": "Following", "kind": "VIDEO_FEED", "description": "Videos from accounts you follow." },
     { "id": "friends", "label": "Friends", "kind": "VIDEO_FEED", "description": "Videos from mutual friends." },
-    { "id": "explore", "label": "Explore", "kind": "EXPLORE", "description": "The Explore tab at the top of Home." },
+    { "id": "explore", "label": "Explore", "kind": "EXPLORE", "description": "The Explore tab at the top of Home, on TikTok versions that have one." },
     { "id": "live", "label": "LIVE", "kind": "LIVE", "description": "Live streams." },
     { "id": "shop", "label": "Shop", "kind": "OTHER", "description": "TikTok Shop." },
     { "id": "video_viewer", "label": "Single videos", "kind": "VIDEO_VIEWER", "description": "A video opened from a chat, a profile or search." },

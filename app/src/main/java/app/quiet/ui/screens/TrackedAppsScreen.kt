@@ -63,8 +63,8 @@ fun TrackedAppsScreen() {
                 Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     AppIcon(t.packageName, t.label, 32.dp)
                     Spacer(Modifier.width(12.dp))
+                    val supported = rules.forPackage(t.packageName) != null
                     Column(Modifier.weight(1f)) {
-                        val supported = rules.forPackage(t.packageName) != null
                         if (supported) {
                             Text(t.label, style = MaterialTheme.typography.titleSmall, color = c.text)
                             Text("Limits for this app live on its own page under Apps.", style = MaterialTheme.typography.bodySmall, color = c.textFaint)
@@ -79,8 +79,10 @@ fun TrackedAppsScreen() {
                             }
                         }
                     }
-                    IconButton(onClick = { editor.edit { st -> st.copy(tracked = st.tracked.filterNot { it.packageName == t.packageName }) } }) {
-                        Icon(Icons.Rounded.Close, "Stop tracking", tint = c.textFaint)
+                    if (!supported) {
+                        IconButton(onClick = { editor.edit { st -> st.copy(tracked = st.tracked.filterNot { it.packageName == t.packageName }) } }) {
+                            Icon(Icons.Rounded.Close, "Stop tracking", tint = c.textFaint)
+                        }
                     }
                 }
             }

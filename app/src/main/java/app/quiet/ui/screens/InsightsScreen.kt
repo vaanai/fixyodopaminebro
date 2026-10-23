@@ -52,6 +52,9 @@ fun InsightsScreen() {
     var range by remember { mutableIntStateOf(7) }
     val today = LocalDate.now()
     val days = StatsMath.lastDays(history, today, range)
+    // Averages only cover days Quiet was actually counting, not the days before it was installed.
+    val counted = days.filter { history.containsKey(it.date) }
+    val countedDays = counted.size.coerceAtLeast(1)
 
     Page {
         ScreenHeader("Insights", "Where your scrolling time goes.")
@@ -65,7 +68,7 @@ fun InsightsScreen() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Legend(c.accent, "Feeds")
                 Spacer(Modifier.width(14.dp))
-                Legend(c.accent.copy(alpha = 0.4f), "Shared videos")
+                Legend(c.accent.copy(alpha = 0.4f), "Single videos")
                 Spacer(Modifier.width(14.dp))
                 Legend(c.warn, "Allowance")
             }
@@ -104,11 +107,11 @@ fun InsightsScreen() {
             }
             Spacer(Modifier.height(12.dp))
             val total = days.sumOf { it.feedSeconds }
-            val avg = total / days.size.coerceAtLeast(1)
+            val avg = total / countedDays
             Row {
                 Stat(formatMinutes(avg), "a day on average", Modifier.weight(1f))
                 Stat(StatsMath.streak(history, today, settings.budgetMinutes).toString(), "day streak", Modifier.weight(1f))
-                Stat(days.count { it.feedSeconds <= budget }.toString() + "/" + days.size, "days within allowance", Modifier.weight(1f))
+                Stat(counted.count { it.feedSeconds <= budget }.toString() + "/" + counted.size, "days within allowance", Modifier.weight(1f))
             }
         }
 
@@ -179,7 +182,7 @@ fun InsightsScreen() {
                         Row {
                             Text(t.label, style = MaterialTheme.typography.titleSmall, color = c.text, modifier = Modifier.weight(1f))
                             Text(
-                                "${formatMinutes(secs)} · ${formatMinutes(secs / days.size)}/day",
+                                "${formatMinutes(secs)} · ${formatMinutes(secs / countedDays)}/day",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = c.textDim,
                             )

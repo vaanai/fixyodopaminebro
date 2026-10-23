@@ -2,6 +2,8 @@ package app.quiet.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +20,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +51,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 @Composable
 fun TodayScreen() {
@@ -121,8 +129,8 @@ fun TodayScreen() {
                 }
                 Spacer(Modifier.width(18.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Stat(formatMinutes(today.feedSeconds), "in endless feeds")
-                    Stat(formatMinutes(today.viewerSeconds), "on videos friends sent")
+                    Stat(formatMinutes(today.feedSeconds), "in video feeds")
+                    Stat(formatMinutes(today.viewerSeconds), "on single videos")
                     Stat(formatMinutes(today.totalAppSeconds), "in social apps")
                 }
             }
@@ -157,7 +165,17 @@ fun TodayScreen() {
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text("${rules.apps[app]?.displayName ?: app} is unlocked", style = MaterialTheme.typography.titleSmall, color = c.text)
-                        Text("${Engine.formatClock(until - now)} left", style = MaterialTheme.typography.bodySmall, color = c.textDim)
+                        val videos = live.engine?.videosLeft?.get(app)
+                        Text(
+                            when (videos) {
+                                null -> "${Engine.formatClock(until - now)} left"
+                                0 -> "Last video · ends in ${Engine.formatClock(until - now)} at most"
+                                1 -> "1 more video · ends in ${Engine.formatClock(until - now)} at most"
+                                else -> "$videos more videos · ends in ${Engine.formatClock(until - now)} at most"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.textDim,
+                        )
                     }
                     SmallButton("Lock now") { QuietService.instance?.relock(app) }
                 }
@@ -167,24 +185,51 @@ fun TodayScreen() {
         // Deliberate unlocks from here, so they don't depend on catching the block screen.
         val focusNow = Engine.isFocusActive(settings, now, ZoneId.systemDefault())
         val unlocksLeft = settings.unlocksPerDay - today.unlocks
-        if (settings.protectionOn && settings.canUnlock(focusNow) && unlocksLeft > 0 && passes.isEmpty()) {
+        val lockedApps = rules.apps.values.filter { settings.app(it.app).enabled && it.app !in passes }
+        if (settings.protectionOn && settings.canUnlock(focusNow) && unlocksLeft > 0 && lockedApps.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
+            // Same pause as the block screen, so unlocking from here isn't the easy way round it.
+            var pending by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
+            var waitLeft by remember { mutableIntStateOf(0) }
+            LaunchedEffect(pending) {
+                val p = pending ?: return@LaunchedEffect
+                waitLeft = settings.unlockWaitSeconds
+                while (waitLeft > 0) {
+                    delay(1000)
+                    waitLeft--
+                }
+                QuietService.instance?.unlockFromApp(p.first, videos = p.second)
+                pending = null
+            }
             QCard {
                 Text("Want to watch a bit?", style = MaterialTheme.typography.titleSmall, color = c.text)
-                Text(
-                    "Uses one of your $unlocksLeft unlocks left today. Then open the app.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = c.textDim,
-                )
-                Spacer(Modifier.height(10.dp))
-                for (app in rules.apps.values.filter { settings.app(it.app).enabled }) {
-                    Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(app.displayName, style = MaterialTheme.typography.bodyMedium, color = c.text, modifier = Modifier.weight(1f))
-                        if (settings.unlockVideos > 0) {
-                            SmallButton("${settings.unlockVideos} more") { QuietService.instance?.unlockFromApp(app.app, videos = true) }
-                            Spacer(Modifier.width(8.dp))
+                val p = pending
+                if (p != null) {
+                    val name = rules.apps[p.first]?.displayName ?: p.first
+                    val what = if (p.second) "${settings.unlockVideos} more videos" else "${settings.unlockMinutes} minutes"
+                    Text(
+                        "Unlocking $name for $what in $waitLeft… Still want it?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textDim,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    SmallButton("Never mind") { pending = null }
+                } else {
+                    Text(
+                        "Uses one of your $unlocksLeft unlocks left today. Then open the app.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textDim,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    for (app in lockedApps) {
+                        Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(app.displayName, style = MaterialTheme.typography.bodyMedium, color = c.text, modifier = Modifier.weight(1f))
+                            if (settings.unlockVideos > 0) {
+                                SmallButton("${settings.unlockVideos} more") { pending = app.app to true }
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            SmallButton("${settings.unlockMinutes} min") { pending = app.app to false }
                         }
-                        SmallButton("${settings.unlockMinutes} min") { QuietService.instance?.unlockFromApp(app.app, videos = false) }
                     }
                 }
             }
@@ -251,6 +296,7 @@ fun TodayScreen() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FocusCard(focusUntil: Long, now: Long, strict: Boolean, active: Boolean, set: (Long) -> Unit) {
     val c = Q.colors
@@ -273,7 +319,7 @@ private fun FocusCard(focusUntil: Long, now: Long, strict: Boolean, active: Bool
             }
         }
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (focusUntil > now) {
                 SmallButton("+30 min") { set(focusUntil + 30 * 60_000L) }
                 if (!strict) SmallButton("End now") { set(0L) }
