@@ -81,6 +81,16 @@ jobs:
           gh release create latest quiet-debug.apk --prerelease --title "Quiet (latest main)" \
             --notes "Debug build of ${GITHUB_SHA::7}. Install with: adb install -r quiet-debug.apk"
 
+      # A manual run on any other branch publishes a "test" prerelease, so a phone can try a build before it merges.
+      - name: Publish "test" release
+        if: github.ref != 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete test --yes --cleanup-tag || true
+          gh release create test quiet-debug.apk --prerelease --target "$GITHUB_SHA" --title "Quiet (test build)" \
+            --notes "Debug build of ${GITHUB_SHA::7} from ${GITHUB_REF_NAME}. Install with: adb install -r quiet-debug.apk"
+
       - name: Test reports
         if: failure()
         uses: actions/upload-artifact@v4
