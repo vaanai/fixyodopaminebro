@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -21,8 +22,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.content.ContextCompat
 import app.quiet.BuildConfig
+import app.quiet.MainActivity
 import app.quiet.QuietApp
 import app.quiet.data.Store
+import app.quiet.ui.components.plural
 import org.json.JSONArray
 import org.json.JSONObject
 import quiet.core.detect.Detector
@@ -62,6 +65,7 @@ class QuietService : AccessibilityService(), CoverActions {
     private var lastEvalAt = 0L
     private var foreground: String? = null
     private var foregroundSince = 0L
+    private var enteredFromApp = false
     private var nudgesSent = 0
     private var lastTick = 0L
     private var carryMs = 0L
@@ -96,6 +100,14 @@ class QuietService : AccessibilityService(), CoverActions {
         main.post(tickRunnable)
         LiveState.update { it.copy(connected = true, lastHeartbeat = System.currentTimeMillis()) }
         Log.i(TAG, "service connected")
+        returnAfterTurnOn()
+    }
+
+    /** Switched on from Quiet's own screens: come back to Quiet instead of staying in Android's settings. */
+    private fun returnAfterTurnOn() {
+        if (SystemClock.elapsedRealtime() > QuietApp.returnAfterTurnOnUntil) return
+        QuietApp.returnAfterTurnOnUntil = 0L
+        runCatching { startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -205,7 +217,7 @@ class QuietService : AccessibilityService(), CoverActions {
         val reading = result?.let { Detector.read(rules, it.tree) } ?: Reading.unknown(rules.app)
         val scroll = lastScroll?.takeIf { lastScrollPkg == fg }
         val decision = engine.evaluate(
-            EngineInput(now, ZoneId.systemDefault(), rules, reading, settings, store.today(now), scroll),
+            EngineInput(now, ZoneId.systemDefault(), rules, reading, settings, store.today(now), scroll, enteredFromApp),
         )
         applyDecision(decision, rules, result)
 
@@ -319,13 +331,16 @@ class QuietService : AccessibilityService(), CoverActions {
         if (minutes >= every * (nudgesSent + 1)) {
             nudgesSent++
             val s = store.settings.value
-            overlays.toast(PillModel("You've been on ${labelFor(fg)} for $minutes minutes.", false, s.accent))
+            overlays.toast(PillModel("You've been on ${labelFor(fg)} for ${plural(minutes, "minute")}.", false, s.accent))
         }
     }
 
     private fun onForeground(fg: String?, now: Long) {
         if (fg == foreground) return
+        val from = foreground
         foreground = fg
+        // Straight from another app rather than the home screen: most likely a link or a share.
+        enteredFromApp = from != null && from !in homePackages
         foregroundSince = now
         nudgesSent = 0
         if (fg == null) return
@@ -409,7 +424,7 @@ class QuietService : AccessibilityService(), CoverActions {
             else -> engine.unlock(cover.app, s.unlockMinutes, now)
         }
         store.mutateToday(now) { it.copy(unlocks = it.unlocks + 1) }
-        store.addLog(cover.appName, if (videos) "Unlocked ${s.unlockVideos} more videos" else "Unlocked for ${s.unlockMinutes} min")
+        store.addLog(cover.appName, if (videos) "Unlocked ${plural(s.unlockVideos, "more video")}" else "Unlocked for ${s.unlockMinutes} min")
         overlays.hideCover()
         media.release()
         scheduleEval()
@@ -445,7 +460,7 @@ class QuietService : AccessibilityService(), CoverActions {
         if (videos) engine.unlockVideos(app, s.unlockVideos, now) else engine.unlock(app, s.unlockMinutes, now)
         store.mutateToday(now) { it.copy(unlocks = it.unlocks + 1) }
         val name = store.rules.value.apps[app]?.displayName ?: app
-        store.addLog(name, if (videos) "Unlocked ${s.unlockVideos} more videos" else "Unlocked for ${s.unlockMinutes} min")
+        store.addLog(name, if (videos) "Unlocked ${plural(s.unlockVideos, "more video")}" else "Unlocked for ${s.unlockMinutes} min")
         scheduleEval()
         return true
     }
@@ -500,6 +515,12 @@ class QuietService : AccessibilityService(), CoverActions {
     }
 
     private fun screenHeight(): Int = screenSize().second
+
+    private val homePackages: Set<String> by lazy {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        runCatching { packageManager.queryIntentActivities(home, 0).map { it.activityInfo.packageName }.toSet() }
+            .getOrDefault(emptySet())
+    }
 
     private fun isLocked(): Boolean = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
 

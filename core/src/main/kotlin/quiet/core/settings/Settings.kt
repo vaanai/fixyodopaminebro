@@ -132,6 +132,11 @@ data class Settings(
     val coverStyle: CoverStyle = CoverStyle.ABOVE_TABS,
     /** Daily limits on whole apps never cover chats. */
     val keepMessagesOpen: Boolean = true,
+    /**
+     * A video link opened from another app (a TikTok someone texted you) plays, even when the app opens it
+     * inside a blocked feed. Swiping on is limited like a video sent in a chat.
+     */
+    val linksPlay: Boolean = true,
 
     /** The settings lock: making Quiet less strict waits this long first. 0 is no lock. See [SettingsLock]. */
     val lockSeconds: Int = 0,

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.HourglassBottom
 import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Policy
@@ -69,6 +70,7 @@ import app.quiet.ui.components.SectionTitle
 import app.quiet.ui.components.Segmented
 import app.quiet.ui.components.StepperRow
 import app.quiet.ui.components.SwitchRow
+import app.quiet.ui.components.plural
 import app.quiet.ui.components.unlockLabel
 import app.quiet.ui.theme.Q
 import app.quiet.ui.theme.accentColor
@@ -142,6 +144,12 @@ fun SettingsScreen() {
                 Icons.Rounded.Timer,
                 value = s.tracked.count { it.dailyLimitMinutes > 0 }.let { if (it > 0) "$it limited" else null },
             ) { nav.go(Route.Tracked) }
+            SwitchRow(
+                "Links from other apps play",
+                s.linksPlay,
+                "A TikTok or reel someone texts you plays, even if it opens in a blocked feed. Swiping on is blocked.",
+                Icons.Rounded.Link,
+            ) { on -> editor.edit { it.copy(linksPlay = on) } }
         }
 
         SectionTitle("When something's blocked")
@@ -278,12 +286,12 @@ private fun UnlocksPage() {
             QCard {
                 ChoiceRow(
                     unlockLabel(UnlockKind.VIDEOS, s.unlockVideos, s.unlockMinutes),
-                    "The next ${s.unlockVideos} swipes play, then it locks again.",
+                    "Swipe through ${plural(s.unlockVideos, "more video")}, then it locks again.",
                     s.unlockKind == UnlockKind.VIDEOS,
                 ) { editor.edit { it.copy(unlockKind = UnlockKind.VIDEOS) } }
                 ChoiceRow(
                     unlockLabel(UnlockKind.MINUTES, s.unlockVideos, s.unlockMinutes),
-                    "The app's feeds open for ${s.unlockMinutes} minutes.",
+                    "The app's feeds open for ${plural(s.unlockMinutes, "minute")}.",
                     s.unlockKind == UnlockKind.MINUTES,
                 ) { editor.edit { it.copy(unlockKind = UnlockKind.MINUTES) } }
                 ChoiceRow(

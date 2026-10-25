@@ -31,6 +31,8 @@ object Strictness {
         if (new.pauseSeconds < old.pauseSeconds) return true
         if (new.pauseMinutes > old.pauseMinutes) return true
         if (!old.focusAllowsUnlocks && new.focusAllowsUnlocks) return true
+        if (!old.keepMessagesOpen && new.keepMessagesOpen) return true
+        if (!old.linksPlay && new.linksPlay) return true
         if (new.focusUntil < old.focusUntil) return true
         if (old.focusWindows.any { w -> w.enabled && w !in new.focusWindows }) return true
         for (t in old.tracked) {

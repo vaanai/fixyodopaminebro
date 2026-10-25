@@ -36,11 +36,12 @@ class EngineTest {
     private var settings = Settings()
     private var today = DayStats("2026-10-22")
     private var scroll: ScrollInfo? = null
+    private var fromApp = false
     private val engine = Engine()
 
     private fun see(rules: AppRules, tree: UiTree, advanceMs: Long = 200): Decision {
         now += advanceMs
-        return engine.evaluate(EngineInput(now, zone, rules, Detector.read(rules, tree), settings, today, scroll))
+        return engine.evaluate(EngineInput(now, zone, rules, Detector.read(rules, tree), settings, today, scroll, fromApp))
     }
 
     private var pagerIndex = 0
@@ -293,6 +294,42 @@ class EngineTest {
         see(tt, Fixtures.ttInbox())
         engine.onLeftApp()
         assertEquals("for_you", see(tt, Fixtures.ttStartingUp(), advanceMs = 5000).cover?.surface)
+    }
+
+    @Test fun `a link from another app plays inside the feed, swiping on is stopped`() {
+        fromApp = true
+        val first = see(tt, Fixtures.ttForYou(author = "@friend"))
+        assertNull(first.cover)
+        assertNull(first.command)
+        assertTrue(first.isViewer)
+        swipe()
+        val next = see(tt, Fixtures.ttForYou(author = "@stranger"), advanceMs = 900)
+        val cover = assertNotNull(next.cover)
+        assertEquals(CoverReason.SWIPE_LIMIT, cover.reason)
+        assertTrue(cover.offerBack)
+    }
+
+    @Test fun `a link visit ends when you go elsewhere in the app`() {
+        fromApp = true
+        see(tt, Fixtures.ttForYou())
+        see(tt, Fixtures.ttInbox())
+        assertEquals(CoverReason.BLOCKED, see(tt, Fixtures.ttForYou(), advanceMs = 30_000).cover?.reason)
+    }
+
+    @Test fun `links stay blocked when the option is off`() {
+        settings = settings.copy(linksPlay = false)
+        fromApp = true
+        assertNotNull(see(tt, Fixtures.ttForYou()).cover)
+    }
+
+    @Test fun `opening from the home screen is not a link`() {
+        assertNotNull(see(tt, Fixtures.ttForYou()).cover)
+    }
+
+    @Test fun `a cold-start link isn't covered by the launch guess`() {
+        fromApp = true
+        assertNull(see(tt, Fixtures.ttStartingUp()).cover)
+        assertNull(see(tt, Fixtures.ttForYou()).cover)
     }
 
     @Test fun `instagram reels jumps to messages, coming straight back shows the options`() {

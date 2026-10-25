@@ -28,6 +28,9 @@ class StrictnessTest {
     }
 
     @Test fun `loosening changes are caught`() {
+        assertTrue(Strictness.isLoosening(base.copy(linksPlay = false), base))
+        assertFalse(Strictness.isLoosening(base, base.copy(linksPlay = false)))
+        assertTrue(Strictness.isLoosening(base.copy(keepMessagesOpen = false), base))
         assertTrue(Strictness.isLoosening(base, base.copy(protectionOn = false)))
         assertTrue(Strictness.isLoosening(base, base.copy(budgetMinutes = 60)))
         assertTrue(Strictness.isLoosening(base, base.withApp("instagram") { it.copy(modes = it.modes + ("reels" to Mode.LIMIT)) }))

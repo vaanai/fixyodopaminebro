@@ -3,11 +3,16 @@
 
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- Apps with a launcher icon, for the tracked-apps picker and app icons. No QUERY_ALL_PACKAGES. -->
+    <!-- Apps with a launcher icon, for the tracked-apps picker and app icons, and the home screen app,
+         to tell opening an app from the home screen apart from following a link. No QUERY_ALL_PACKAGES. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
         </intent>
     </queries>
 

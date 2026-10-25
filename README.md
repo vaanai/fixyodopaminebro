@@ -3,7 +3,7 @@
 Quiet keeps the endless parts of Instagram, TikTok and YouTube out of your day, and leaves the parts you actually need (chats, friends, the videos people send you) alone.
 
 - **Reels tab / For You / Shorts**: blocked, limited, or behind a breathing pause. You choose per feed.
-- **A reel a friend sent you** plays normally. Swiping past it into the algorithm is what gets stopped, with a separate allowance for chats, profiles, your feed, Explore and stories.
+- **A reel a friend sent you** plays normally. Swiping past it into the algorithm is what gets stopped, with a separate allowance for chats, profiles, your feed, Explore and stories. Links opened from other apps (a TikTok someone texted you) play too, even when the app opens them inside a blocked feed.
 - **Blocked means a way out**: Instagram's Reels tab drops you into Messages, and TikTok skips For You and opens on your Inbox. Come straight back and you get the block screen with unlock options.
 - **Instagram Home** can be left alone, blocked, or blocked with the **Stories row still tappable** above the cover.
 - **Unlocks** if you want them: you choose whether each one gives you N more videos, N minutes, or a pick each time, after a short wait, a few times a day.

@@ -30,6 +30,8 @@ data class EngineInput(
     val settings: Settings,
     val today: DayStats,
     val scroll: ScrollInfo? = null,
+    /** The app came to the front straight from another app (a link or a share), not from the home screen. */
+    val fromApp: Boolean = false,
 )
 
 enum class CoverReason {
@@ -163,6 +165,7 @@ class Engine {
     private var enteredAt = 0L
     private var launchSettled = false
     private var guessing = false
+    private var linkVisit = false
 
     fun evaluate(input: EngineInput): Decision {
         val now = input.now
@@ -171,6 +174,7 @@ class Engine {
             app = input.reading.app
             enteredAt = now
             launchSettled = false
+            linkVisit = input.fromApp && input.settings.linksPlay
         }
         val raw = guessAtLaunch(input.rules, input.reading, now) ?: input.reading
         guessing = raw !== input.reading
@@ -197,6 +201,8 @@ class Engine {
 
         val surface = raw.surface!!
         val kind = raw.kind!!
+        // A visit that started from a link lasts while you stay with videos; going anywhere else ends it.
+        if (kind != SurfaceKind.VIDEO_FEED && kind != SurfaceKind.VIDEO_VIEWER) linkVisit = false
         val events = mutableListOf<EngineEvent>()
         val swipesBefore = session?.takeIf { it.surface == surface }?.swipes
         trackVideo(raw, surface, kind, input.scroll, now, events)
@@ -298,6 +304,16 @@ class Engine {
                 return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true))
             }
             return base.copy(pill = unlockedUntil?.let { passPill(it, "Unlocked") })
+        }
+
+        // A link from another app (a TikTok texted to you) often opens inside the feed. The video it
+        // opened plays, and swiping on is limited like a video sent in a chat.
+        if (linkVisit && kind == SurfaceKind.VIDEO_FEED) {
+            val allowed = s.viewerSwipesFor(appId, Origin.MESSAGES)
+            if (allowed != UNLIMITED && (session?.swipes ?: 0) > allowed && unlockedUntil == null) {
+                return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true))
+            }
+            return base.copy(isFeed = false, isViewer = true, pill = unlockedUntil?.let { passPill(it, "Unlocked") })
         }
 
         var mode = s.modeFor(appId, surface)

@@ -475,10 +475,13 @@ fun AppIcon(packageName: String, label: String, size: Dp = 36.dp) {
 fun isInstalled(pm: PackageManager, pkg: String): Boolean =
     runCatching { pm.getApplicationInfo(pkg, 0); true }.getOrDefault(false)
 
+/** "1 minute", "5 minutes". */
+fun plural(n: Int, word: String): String = if (n == 1) "1 $word" else "$n ${word}s"
+
 /** What one unlock gives, in words: "5 more videos" or "5 minutes". */
 fun unlockLabel(kind: UnlockKind, videos: Int, minutes: Int): String = when (kind) {
-    UnlockKind.VIDEOS -> if (videos == 1) "1 more video" else "$videos more videos"
-    UnlockKind.MINUTES -> if (minutes == 1) "1 minute" else "$minutes minutes"
+    UnlockKind.VIDEOS -> plural(videos, "more video")
+    UnlockKind.MINUTES -> plural(minutes, "minute")
     UnlockKind.CHOOSE -> "${unlockLabel(UnlockKind.VIDEOS, videos, minutes)} or ${unlockLabel(UnlockKind.MINUTES, videos, minutes)}"
 }
 

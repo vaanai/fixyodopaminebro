@@ -62,6 +62,7 @@ import app.quiet.ui.components.SectionTitle
 import app.quiet.ui.components.Segmented
 import app.quiet.ui.components.StepperRow
 import app.quiet.ui.components.SwitchRow
+import app.quiet.ui.components.plural
 import app.quiet.ui.components.unlockLabel
 import app.quiet.ui.theme.Q
 import kotlinx.coroutines.delay
@@ -302,8 +303,8 @@ private fun Tune() {
         for (kind in UnlockKind.entries) {
             val title = if (kind == UnlockKind.CHOOSE) "Let me pick each time" else unlockLabel(kind, s.unlockVideos, s.unlockMinutes)
             val sub = when (kind) {
-                UnlockKind.VIDEOS -> "The next ${s.unlockVideos} swipes play, then it locks again."
-                UnlockKind.MINUTES -> "Feeds open for ${s.unlockMinutes} minutes."
+                UnlockKind.VIDEOS -> "Swipe through ${plural(s.unlockVideos, "more video")}, then it locks again."
+                UnlockKind.MINUTES -> "Feeds open for ${plural(s.unlockMinutes, "minute")}."
                 UnlockKind.CHOOSE -> "The block screen offers both."
             }
             ChoiceRow(title, sub, s.unlocksEnabled && s.unlockKind == kind) {

@@ -28,6 +28,7 @@ object SettingsCodec {
         put("nudgeEveryMinutes", s.nudgeEveryMinutes)
         put("coverStyle", s.coverStyle.name)
         put("keepMessagesOpen", s.keepMessagesOpen)
+        put("linksPlay", s.linksPlay)
         put("lockSeconds", s.lockSeconds)
         put("lockOpensAt", s.lockOpensAt)
         put("lockPromptSeen", s.lockPromptSeen)
@@ -87,6 +88,7 @@ object SettingsCodec {
             nudgeEveryMinutes = o.optInt("nudgeEveryMinutes", d.nudgeEveryMinutes),
             coverStyle = enumOr(o.optString("coverStyle"), d.coverStyle),
             keepMessagesOpen = o.optBoolean("keepMessagesOpen", d.keepMessagesOpen),
+            linksPlay = o.optBoolean("linksPlay", d.linksPlay),
             lockSeconds = lockSeconds,
             lockOpensAt = o.optLong("lockOpensAt", d.lockOpensAt),
             lockPromptSeen = o.optBoolean("lockPromptSeen", d.lockPromptSeen),

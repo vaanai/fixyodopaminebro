@@ -3,6 +3,7 @@ package app.quiet.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -226,6 +227,8 @@ fun rememberNow(periodMs: Long = 1000): Long {
 }
 
 fun openAccessibilitySettings(context: Context) {
+    // The service brings Quiet back as soon as it's switched on, so you don't have to find your way back.
+    QuietApp.returnAfterTurnOnUntil = SystemClock.elapsedRealtime() + 10 * 60_000L
     val intent = Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { context.startActivity(intent) }
 }

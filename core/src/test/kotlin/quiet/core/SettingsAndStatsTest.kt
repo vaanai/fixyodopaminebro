@@ -36,6 +36,7 @@ class SettingsAndStatsTest {
             lockPromptSeen = true,
             disclosureAccepted = true,
             onboarded = true,
+            linksPlay = false,
         ).withApp("instagram") { it.copy(keepVisible = emptySet()) }
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
     }
