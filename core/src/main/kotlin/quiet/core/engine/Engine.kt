@@ -166,6 +166,7 @@ class Engine {
     private var launchSettled = false
     private var guessing = false
     private var linkVisit = false
+    private var linkSwipes = 0
 
     fun evaluate(input: EngineInput): Decision {
         val now = input.now
@@ -175,8 +176,9 @@ class Engine {
             enteredAt = now
             launchSettled = false
             linkVisit = input.fromApp && input.settings.linksPlay
+            linkSwipes = 0
         }
-        val raw = guessAtLaunch(input.rules, input.reading, now) ?: input.reading
+        val raw = guessAtLaunch(input.rules, input.reading, now) ?: stillOnFeed(input.reading) ?: input.reading
         guessing = raw !== input.reading
 
         // A partial read that already shows a chat is trusted: chats are never covered.
@@ -207,6 +209,7 @@ class Engine {
         val swipesBefore = session?.takeIf { it.surface == surface }?.swipes
         trackVideo(raw, surface, kind, input.scroll, now, events)
         val swiped = swipesBefore != null && (session?.swipes ?: 0) > swipesBefore
+        if (swiped && linkVisit) linkSwipes++
         var passEnded = false
         if (swiped) videoPasses[raw.app]?.let { p ->
             if (p.remaining <= 0) {
@@ -310,7 +313,7 @@ class Engine {
         // opened plays, and swiping on is limited like a video sent in a chat.
         if (linkVisit && kind == SurfaceKind.VIDEO_FEED) {
             val allowed = s.viewerSwipesFor(appId, Origin.MESSAGES)
-            if (allowed != UNLIMITED && (session?.swipes ?: 0) > allowed && unlockedUntil == null) {
+            if (allowed != UNLIMITED && linkSwipes > allowed && unlockedUntil == null) {
                 return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true))
             }
             return base.copy(isFeed = false, isViewer = true, pill = unlockedUntil?.let { passPill(it, "Unlocked") })
@@ -366,6 +369,16 @@ class Engine {
         if (!r.isUnknown && r.kind != SurfaceKind.VIDEO_VIEWER) return null
         val info = rules.surface(launch.surface) ?: return null
         return r.copy(surface = info.id, kind = info.kind)
+    }
+
+    /**
+     * A partial read that only shows a video, while you're watching a feed, is still that feed: the read
+     * ran out before reaching the tabs. Taking it for a single video would restart the swipe count.
+     */
+    private fun stillOnFeed(r: Reading): Reading? {
+        val feed = session?.takeIf { it.kind == SurfaceKind.VIDEO_FEED } ?: return null
+        if (!r.truncated || r.kind != SurfaceKind.VIDEO_VIEWER) return null
+        return r.copy(surface = feed.surface, kind = SurfaceKind.VIDEO_FEED)
     }
 
     /** A blocked feed: show the cover and, on a fresh landing, try to jump somewhere useful. */

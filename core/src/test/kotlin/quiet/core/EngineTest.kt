@@ -309,6 +309,15 @@ class EngineTest {
         assertTrue(cover.offerBack)
     }
 
+    @Test fun `partial reads don't restart the swipe count on a link`() {
+        fromApp = true
+        see(tt, Fixtures.ttForYou(author = "@friend"))
+        // A partial read mid-video looks like a single video, but it's still the feed.
+        assertNull(see(tt, Fixtures.ttStartingUp(), advanceMs = 2000).cover)
+        swipe()
+        assertEquals(CoverReason.SWIPE_LIMIT, see(tt, Fixtures.ttForYou(author = "@stranger"), advanceMs = 900).cover?.reason)
+    }
+
     @Test fun `a link visit ends when you go elsewhere in the app`() {
         fromApp = true
         see(tt, Fixtures.ttForYou())

@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -66,6 +67,7 @@ class QuietService : AccessibilityService(), CoverActions {
     private var foreground: String? = null
     private var foregroundSince = 0L
     private var enteredFromApp = false
+    private var lastApp: String? = null
     private var nudgesSent = 0
     private var lastTick = 0L
     private var carryMs = 0L
@@ -202,8 +204,11 @@ class QuietService : AccessibilityService(), CoverActions {
         val rules = fg?.let { store.rules.value.forPackage(it) }
 
         if (rules == null) {
-            if (lastRules != null) engine.onLeftApp()
-            lastRules = null
+            // No readable app in front (mid-transition) isn't leaving: keep the app's state.
+            if (fg != null) {
+                if (lastRules != null) engine.onLeftApp()
+                lastRules = null
+            }
             val cover = genericLimitCover(fg, now)
             applyDecision(Decision(cover = cover), null, null)
             LiveState.update { it.copy(foreground = fg, reading = null, decision = lastDecision, engine = engine.snapshot()) }
@@ -337,13 +342,16 @@ class QuietService : AccessibilityService(), CoverActions {
 
     private fun onForeground(fg: String?, now: Long) {
         if (fg == foreground) return
-        val from = foreground
         foreground = fg
-        // Straight from another app rather than the home screen: most likely a link or a share.
-        enteredFromApp = from != null && from !in homePackages
         foregroundSince = now
         nudgesSent = 0
         if (fg == null) return
+        // Straight from another app rather than the home screen: most likely a link or a share. Moments
+        // with no readable app in front (a cold start's splash) don't count as leaving.
+        if (fg != lastApp) {
+            enteredFromApp = lastApp?.let { !isHome(it) } ?: false
+            lastApp = fg
+        }
         val s = store.settings.value
         val tracked = store.rules.value.forPackage(fg) != null || s.tracked.any { it.packageName == fg }
         if (tracked) store.mutateToday(now) { it.copy(opens = it.opens.plusCount(fg)) }
@@ -516,10 +524,16 @@ class QuietService : AccessibilityService(), CoverActions {
 
     private fun screenHeight(): Int = screenSize().second
 
-    private val homePackages: Set<String> by lazy {
+    /** The home screen app. Settings also answers the home intent (its fallback home while the phone boots), so only the default counts. */
+    private fun isHome(pkg: String): Boolean {
         val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        runCatching { packageManager.queryIntentActivities(home, 0).map { it.activityInfo.packageName }.toSet() }
-            .getOrDefault(emptySet())
+        val default = runCatching {
+            packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+        }.getOrNull()
+        // With no default picked this resolves to the system chooser ("android"); then any home app but Settings counts.
+        if (default != null && default != "android") return pkg == default
+        val all = runCatching { packageManager.queryIntentActivities(home, 0).map { it.activityInfo.packageName } }.getOrDefault(emptyList())
+        return pkg in all && pkg != "com.android.settings"
     }
 
     private fun isLocked(): Boolean = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
