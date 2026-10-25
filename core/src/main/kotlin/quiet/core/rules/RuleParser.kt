@@ -76,6 +76,14 @@ object RuleParser {
             throw RuleParseException("autoSkipTarget $autoSkip is not a nav target")
         }
 
+        val launch = root.optJSONObject("launch")?.let { l ->
+            val surface = l.reqString("surface")
+            val signal = l.reqString("signal")
+            if (surface !in surfaceIds) throw RuleParseException("launch points at unknown surface $surface")
+            if (signal !in signals) throw RuleParseException("launch uses unknown signal $signal")
+            LaunchGuess(surface, signal)
+        }
+
         return AppRules(
             app = app,
             displayName = root.reqString("displayName"),
@@ -92,6 +100,7 @@ object RuleParser {
             pagerSignal = optSignal("pagerSignal"),
             signatureIds = root.optJSONArray("signatureIds").strings(),
             autoSkipTarget = autoSkip,
+            launch = launch,
         )
     }
 

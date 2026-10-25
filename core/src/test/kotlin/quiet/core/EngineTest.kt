@@ -262,6 +262,39 @@ class EngineTest {
         assertNull(see(tt, Fixtures.ttInbox()).cover)
     }
 
+    @Test fun `tiktok starting up is covered before its tabs can be read`() {
+        assertNull(see(tt, Fixtures.ttSplash()).cover)
+        val d = see(tt, Fixtures.ttStartingUp())
+        assertEquals("for_you", assertNotNull(d.cover).surface)
+        // The tab to skip to isn't readable yet: the skip waits for the full feed.
+        assertNull(d.command)
+        assertEquals(Command.Navigate("tiktok", "inbox"), see(tt, Fixtures.ttForYou()).command)
+    }
+
+    @Test fun `a complete read ends the launch guess`() {
+        see(tt, Fixtures.ttInbox())
+        val d = see(tt, Fixtures.ttStartingUp(), advanceMs = 2000)
+        assertNull(d.cover)
+        assertTrue(d.isViewer)
+    }
+
+    @Test fun `the launch guess lasts only a few seconds`() {
+        see(tt, Fixtures.ttSplash())
+        assertNull(see(tt, Fixtures.ttStartingUp(), advanceMs = Engine.LAUNCH_GUESS_MS + 1).cover)
+    }
+
+    @Test fun `a shared video opened at launch still plays`() {
+        val d = see(tt, Fixtures.ttSharedVideo())
+        assertNull(d.cover)
+        assertTrue(d.isViewer)
+    }
+
+    @Test fun `leaving and coming back guesses again`() {
+        see(tt, Fixtures.ttInbox())
+        engine.onLeftApp()
+        assertEquals("for_you", see(tt, Fixtures.ttStartingUp(), advanceMs = 5000).cover?.surface)
+    }
+
     @Test fun `instagram reels jumps to messages, coming straight back shows the options`() {
         val d = see(ig, Fixtures.igReelsTab())
         assertEquals(Command.Navigate("instagram", "messages"), d.command)

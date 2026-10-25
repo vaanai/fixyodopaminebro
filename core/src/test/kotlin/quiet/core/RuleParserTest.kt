@@ -1,6 +1,7 @@
 package quiet.core
 
 import org.junit.Test
+import quiet.core.rules.LaunchGuess
 import quiet.core.rules.RuleParseException
 import quiet.core.rules.RuleParser
 import kotlin.test.assertEquals
@@ -55,6 +56,13 @@ class RuleParserTest {
 
     @Test fun `instagram home keeps the stories row`() {
         assertEquals("storiesTray", Fixtures.rules("instagram").surface("home")?.keep?.signal)
+    }
+
+    @Test fun `launch guess parses and must name a known surface and signal`() {
+        assertEquals(LaunchGuess("s", "a"), RuleParser.parse(minimal(extra = """, "launch": {"surface": "s", "signal": "a"}""")).launch)
+        assertFailsWith<RuleParseException> { RuleParser.parse(minimal(extra = """, "launch": {"surface": "nope", "signal": "a"}""")) }
+        assertFailsWith<RuleParseException> { RuleParser.parse(minimal(extra = """, "launch": {"surface": "s", "signal": "nope"}""")) }
+        assertEquals(LaunchGuess("for_you", "videoActions"), Fixtures.rules("tiktok").launch)
     }
 
     @Test fun `auto skip must be a nav target`() {

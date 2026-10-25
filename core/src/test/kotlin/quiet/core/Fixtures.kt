@@ -110,6 +110,20 @@ object Fixtures {
         }
     }.build()
 
+    /** TikTok mid cold start: the read ran out of time inside the video pager, before reaching any tabs. */
+    fun ttStartingUp(): UiTree = Screen(TT).apply {
+        node(desc = "Like video. 1,442 likes", clickable = true, left = 904, top = 1273, bottom = 1438)
+    }.build().let { UiTree(it.packageName, it.nodes, it.screenWidth, it.screenHeight, truncated = true) }
+
+    /** A single video opened from a link: read in full, and there are no tabs. */
+    fun ttSharedVideo(): UiTree = Screen(TT).apply {
+        node(text = "@friend", top = 1900, bottom = 1950)
+        node(desc = "Like video. 88 likes", clickable = true, top = 1200, bottom = 1300)
+    }.build()
+
+    /** TikTok's splash screen: nothing to read yet. */
+    fun ttSplash(): UiTree = Screen(TT).apply { node(cls = "ImageView", top = 1000, bottom = 1400) }.build()
+
     fun ttInbox(): UiTree = Screen(TT).apply {
         node(text = "Messages", top = 300, bottom = 400)
         for (label in listOf("Home", "Friends", "Inbox", "Profile")) {

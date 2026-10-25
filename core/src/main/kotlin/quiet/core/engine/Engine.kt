@@ -160,14 +160,20 @@ class Engine {
     private data class VideoPass(val remaining: Int, val until: Long)
     private val videoPasses = mutableMapOf<String, VideoPass>()
     private val lastSkipAt = mutableMapOf<String, Long>()
+    private var enteredAt = 0L
+    private var launchSettled = false
+    private var guessing = false
 
     fun evaluate(input: EngineInput): Decision {
         val now = input.now
-        val raw = input.reading
-        if (app != raw.app) {
+        if (app != input.reading.app) {
             resetApp()
-            app = raw.app
+            app = input.reading.app
+            enteredAt = now
+            launchSettled = false
         }
+        val raw = guessAtLaunch(input.rules, input.reading, now) ?: input.reading
+        guessing = raw !== input.reading
 
         // A partial read that already shows a chat is trusted: chats are never covered.
         if (raw.isUnknown || (raw.truncated && raw.kind != SurfaceKind.MESSAGES)) {
@@ -327,12 +333,32 @@ class Engine {
         }
     }
 
+    /**
+     * An app that has just come to the front can be too busy to read in full: TikTok's first reads at a
+     * cold start stop inside the video pager, before the tabs, and look like a single video. While the
+     * app is starting, such a read is taken to be the surface it opens on, so For You is covered at once
+     * instead of seconds later. The first complete read, or a few seconds, ends the guessing.
+     */
+    private fun guessAtLaunch(rules: AppRules, r: Reading, now: Long): Reading? {
+        val launch = rules.launch ?: return null
+        if (launchSettled) return null
+        if ((!r.isUnknown && !r.truncated) || now - enteredAt > LAUNCH_GUESS_MS) {
+            launchSettled = true
+            return null
+        }
+        if (!r.truncated || launch.signal !in r.signals) return null
+        if (!r.isUnknown && r.kind != SurfaceKind.VIDEO_VIEWER) return null
+        val info = rules.surface(launch.surface) ?: return null
+        return r.copy(surface = info.id, kind = info.kind)
+    }
+
     /** A blocked feed: show the cover and, on a fresh landing, try to jump somewhere useful. */
     private fun blocked(input: EngineInput, kind: SurfaceKind, base: Decision, cover: Cover): Decision {
         val target = input.settings.app(input.rules.app).autoSkipTarget
             ?.takeIf { input.rules.navTarget(it) != null }
         val land = landing
-        if (target == null || kind != SurfaceKind.VIDEO_FEED || land == null) return base.copy(cover = cover)
+        // A guessed read may not have reached the tab to skip to yet: cover now, skip on a full read.
+        if (target == null || kind != SurfaceKind.VIDEO_FEED || land == null || guessing) return base.copy(cover = cover)
         // Coming straight back after a skip means you want the options: show the cover instead.
         val key = "${input.rules.app}.${land.surface}"
         val lastSkip = lastSkipAt[key]
@@ -492,6 +518,8 @@ class Engine {
 
     companion object {
         const val UNKNOWN_HOLD_MS = 1_500L
+        /** How long after an app comes to the front a partial read can be taken for its launch surface. */
+        const val LAUNCH_GUESS_MS = 10_000L
         const val ORIGIN_MEMORY_MS = 120_000L
         const val SWIPE_SCROLL_WINDOW_MS = 1_500L
         const val MIN_SWIPE_GAP_MS = 800L

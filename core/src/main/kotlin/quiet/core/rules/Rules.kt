@@ -126,6 +126,13 @@ data class SurfaceInfo(
     val keep: KeepArea? = null,
 )
 
+/**
+ * The surface an app opens on, like TikTok's For You. An app that's still starting up is often too
+ * busy to read in full; for its first seconds in front, a partial read showing only [signal] (a
+ * video, with no tabs read yet) is taken to be [surface] instead of a single video.
+ */
+data class LaunchGuess(val surface: String, val signal: String)
+
 /** Where a button on the block screen should take you inside the app. */
 data class NavTarget(val id: String, val label: String, val signal: String)
 
@@ -147,6 +154,7 @@ data class AppRules(
     val signatureIds: List<String>,
     /** Where to go when the user lands on a blocked feed and auto-skip is on. */
     val autoSkipTarget: String?,
+    val launch: LaunchGuess? = null,
 ) {
     fun surface(id: String): SurfaceInfo? = surfaces.firstOrNull { it.id == id }
     fun navTarget(id: String): NavTarget? = nav.firstOrNull { it.id == id }

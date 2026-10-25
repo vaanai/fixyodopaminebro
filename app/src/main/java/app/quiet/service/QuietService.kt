@@ -211,7 +211,7 @@ class QuietService : AccessibilityService(), CoverActions {
 
         if (settings.verboseLogging && reading.surface != lastLoggedSurface) {
             lastLoggedSurface = reading.surface
-            Log.i(TAG, "screen ${rules.app}.${reading.surface} kind=${reading.kind} signals=${reading.signals} cover=${decision.cover?.reason} nodes=${result?.tree?.nodes?.size}")
+            Log.i(TAG, "screen ${rules.app}.${reading.surface} kind=${reading.kind} signals=${reading.signals} cover=${decision.cover?.reason} nodes=${result?.tree?.nodes?.size} truncated=${reading.truncated}")
         }
         if (dumpRequested && result != null) {
             dumpRequested = false
@@ -469,12 +469,19 @@ class QuietService : AccessibilityService(), CoverActions {
         return fromWindows ?: rootInActiveWindow?.packageName?.toString()?.takeIf { it != packageName }
     }
 
+    /**
+     * The app's main window. Apps float popups as windows of their own above it (TikTok's inbox-count
+     * bubble is one), so the biggest window of the app is read, not the top one. Equal sizes keep the
+     * top one, so a full-screen dialog still wins over what's under it.
+     */
     private fun findRoot(pkg: String): AccessibilityNodeInfo? {
+        val rect = android.graphics.Rect()
         val fromWindows = runCatching {
-            windows.asSequence()
+            windows
                 .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-                .mapNotNull { if (Build.VERSION.SDK_INT >= 33) it.getRoot(TreeReader.PREFETCH) else it.root }
-                .firstOrNull { it.packageName?.toString() == pkg }
+                .sortedByDescending { w -> w.getBoundsInScreen(rect); rect.width().toLong() * rect.height() }
+                .firstOrNull { it.root?.packageName?.toString() == pkg }
+                ?.let { if (Build.VERSION.SDK_INT >= 33) it.getRoot(TreeReader.PREFETCH) else it.root }
         }.getOrNull()
         return fromWindows ?: rootInActiveWindow?.takeIf { it.packageName?.toString() == pkg }
     }
