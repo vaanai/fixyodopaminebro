@@ -198,10 +198,12 @@ private fun Buttons(cover: Cover, actions: CoverActions) {
                 CoverButton("Go back", primary = true, icon = Icons.AutoMirrored.Rounded.ArrowBack) { actions.onBack(cover) }
             }
             else -> {
-                cover.navTargets.take(2).forEachIndexed { i, t ->
+                // No "Go to Home feed" while you're on the Home feed.
+                val targets = cover.navTargets.filter { it.id != cover.surface }.take(2)
+                targets.forEachIndexed { i, t ->
                     CoverButton("Go to ${t.label}", primary = i == 0) { actions.onNav(cover, t.id) }
                 }
-                if (cover.navTargets.isEmpty()) CoverButton("Go back", primary = true) { actions.onBack(cover) }
+                if (targets.isEmpty()) CoverButton("Go back", primary = true) { actions.onBack(cover) }
             }
         }
         if (cover.reason != CoverReason.PAUSE) {
