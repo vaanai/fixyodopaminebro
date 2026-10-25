@@ -27,11 +27,18 @@ object RuleParser {
         }
 
         val surfaces = root.optJSONArray("surfaces").objects().map { s ->
+            val id = s.reqString("id")
+            val keep = s.optJSONObject("keep")?.let { k ->
+                val signal = k.reqString("signal")
+                if (signal !in signals) throw RuleParseException("surface $id keeps unknown signal $signal")
+                KeepArea(signal, k.reqString("name"), k.optString("description", ""))
+            }
             SurfaceInfo(
-                id = s.reqString("id"),
+                id = id,
                 label = s.reqString("label"),
                 kind = parseKind(s.reqString("kind")),
                 description = s.optString("description", ""),
+                keep = keep,
             )
         }
         val surfaceIds = surfaces.map { it.id }.toSet()

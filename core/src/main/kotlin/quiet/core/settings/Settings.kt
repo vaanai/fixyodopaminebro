@@ -13,7 +13,7 @@ enum class Mode {
     /** Allowed until the shared daily short-form allowance runs out, then blocked. */
     LIMIT,
 
-    /** Covered. Unlocks are possible unless strict mode or focus says otherwise. */
+    /** Covered. Unlocks are possible unless they are turned off or focus says otherwise. */
     BLOCK,
 }
 
@@ -37,6 +37,25 @@ enum class CoverStyle {
 
 enum class Accent { MINT, VIOLET, AMBER, ROSE, SKY }
 
+/** What one unlock from the block screen gives you. */
+enum class UnlockKind {
+    /** "Watch N more": the next N swipes are open, then it locks again. */
+    VIDEOS,
+
+    /** "N minutes": the app's feeds are open for a while. */
+    MINUTES,
+
+    /** Offer both and pick each time. */
+    CHOOSE;
+
+    /** The unlocks to offer. Whole-app limits can only unlock by time: videos can't be counted there. */
+    fun offers(appLimit: Boolean = false): List<UnlockKind> = when {
+        appLimit -> listOf(MINUTES)
+        this == CHOOSE -> listOf(VIDEOS, MINUTES)
+        else -> listOf(this)
+    }
+}
+
 const val UNLIMITED = -1
 
 data class AppSettings(
@@ -49,6 +68,8 @@ data class AppSettings(
     val dailyLimitMinutes: Int = 0,
     /** Nav target to jump to when you land on a blocked feed, or null to just cover it. */
     val autoSkipTarget: String? = null,
+    /** Surfaces whose keep area (the rules' `keep`, e.g. Instagram's Stories row) stays uncovered when blocked. */
+    val keepVisible: Set<String> = emptySet(),
 )
 
 data class FocusWindow(
@@ -87,9 +108,11 @@ data class Settings(
     val budgetMinutes: Int = 20,
 
     val unlocksEnabled: Boolean = true,
-    val unlockMinutes: Int = 5,
-    /** Size of a "watch N more" unlock; 0 turns that option off. */
+    val unlockKind: UnlockKind = UnlockKind.VIDEOS,
+    /** Size of a "watch N more" unlock. */
     val unlockVideos: Int = 5,
+    /** Length of an "N minutes" unlock. Daily app limits always unlock this way. */
+    val unlockMinutes: Int = 5,
     val unlockWaitSeconds: Int = 15,
     val unlocksPerDay: Int = 3,
 
@@ -110,14 +133,19 @@ data class Settings(
     /** Daily limits on whole apps never cover chats. */
     val keepMessagesOpen: Boolean = true,
 
-    /** No unlocks, and loosening any setting makes you wait first. */
-    val strictMode: Boolean = false,
-    val strictDelaySeconds: Int = 30,
+    /** The settings lock: making Quiet less strict waits this long first. 0 is no lock. See [SettingsLock]. */
+    val lockSeconds: Int = 0,
+    /** When the current lock wait ends (epoch ms); settings then stay open for a while. 0 when locked. */
+    val lockOpensAt: Long = 0L,
+    /** The Today screen has offered the settings lock to someone who set Quiet up before it existed. */
+    val lockPromptSeen: Boolean = false,
 
     val tracked: List<TrackedApp> = Defaults.trackedApps,
 
     val accent: Accent = Accent.MINT,
-    val verboseLogging: Boolean = true,
+    val verboseLogging: Boolean = false,
+    /** The user agreed to the accessibility disclosure. */
+    val disclosureAccepted: Boolean = false,
     val onboarded: Boolean = false,
 ) {
     fun app(id: String): AppSettings = apps[id] ?: Defaults.appSettings(id)
@@ -132,7 +160,10 @@ data class Settings(
         copy(apps = apps + (id to transform(app(id))))
 
     fun canUnlock(focusActive: Boolean): Boolean =
-        unlocksEnabled && !strictMode && (!focusActive || focusAllowsUnlocks)
+        unlocksEnabled && (!focusActive || focusAllowsUnlocks)
+
+    /** Whether the rules' keep area for [surface] (e.g. the Stories row on Home) stays visible when it's covered. */
+    fun keepsVisible(app: String, surface: String): Boolean = surface in app(app).keepVisible
 }
 
 object Defaults {
@@ -173,6 +204,8 @@ object Defaults {
             ),
             viewerSwipes = friendlyViewer,
             autoSkipTarget = "messages",
+            // Blocking Home keeps the Stories row unless you turn that off.
+            keepVisible = setOf("home"),
         )
         "tiktok" -> AppSettings(
             enabled = true,
@@ -207,8 +240,8 @@ object Defaults {
                 "youtube" to appSettings("youtube"),
             ),
             budgetMinutes = 30,
+            unlocksEnabled = true,
             unlocksPerDay = 5,
-            strictMode = false,
         )
         Preset.BALANCED -> base.copy(
             apps = mapOf(
@@ -217,8 +250,8 @@ object Defaults {
                 "youtube" to appSettings("youtube"),
             ),
             budgetMinutes = 20,
+            unlocksEnabled = true,
             unlocksPerDay = 3,
-            strictMode = false,
         )
         Preset.STRICT -> base.copy(
             apps = mapOf(
@@ -229,9 +262,9 @@ object Defaults {
                 "youtube" to appSettings("youtube").copy(enabled = true),
             ),
             budgetMinutes = 10,
+            unlocksEnabled = false,
             unlocksPerDay = 1,
             unlockWaitSeconds = 30,
-            strictMode = true,
         )
     }
 }
@@ -239,5 +272,5 @@ object Defaults {
 enum class Preset(val title: String, val blurb: String) {
     GENTLE("Gentle", "Reels and For You get a shared 30 minute daily allowance. Five unlocks a day."),
     BALANCED("Balanced", "Reels and For You are blocked. Friends' videos still open. Three unlocks a day."),
-    STRICT("Strict", "Everything short-form is blocked, YouTube Shorts too. No unlocks, and loosening settings takes a wait."),
+    STRICT("Strict", "Everything short-form is blocked, YouTube Shorts too. Explore gets a pause first. No unlocks."),
 }

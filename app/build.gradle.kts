@@ -4,16 +4,21 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+/** Release signing comes from Gradle properties or the environment, never from the repo. */
+fun secret(name: String): String? = (findProperty(name) as String?)?.ifBlank { null } ?: System.getenv(name)?.ifBlank { null }
+
+val uploadStoreFile = secret("QUIET_UPLOAD_STORE_FILE")
+
 android {
     namespace = "app.quiet"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "app.quiet"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 204
-        versionName = "2.0.4"
+        targetSdk = 36
+        versionCode = 210
+        versionName = "2.1.0"
     }
 
     signingConfigs {
@@ -25,6 +30,15 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // The Play upload key. See docs/releasing.md.
+        if (uploadStoreFile != null) {
+            create("release") {
+                storeFile = file(uploadStoreFile)
+                storePassword = secret("QUIET_UPLOAD_STORE_PASSWORD")
+                keyAlias = secret("QUIET_UPLOAD_KEY_ALIAS")
+                keyPassword = secret("QUIET_UPLOAD_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -32,8 +46,10 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (uploadStoreFile != null) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

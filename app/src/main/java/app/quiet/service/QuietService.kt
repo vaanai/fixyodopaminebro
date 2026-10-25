@@ -20,6 +20,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.content.ContextCompat
+import app.quiet.BuildConfig
 import app.quiet.QuietApp
 import app.quiet.data.Store
 import org.json.JSONArray
@@ -73,6 +74,7 @@ class QuietService : AccessibilityService(), CoverActions {
     private var lastLoggedSurface: String? = null
     private val genericUnlocks = mutableMapOf<String, Long>()
     private var receiversRegistered = false
+    private var debugReceiverRegistered = false
 
     private val evalRunnable = Runnable { evaluateSafely() }
     private val tickRunnable = object : Runnable {
@@ -114,8 +116,11 @@ class QuietService : AccessibilityService(), CoverActions {
         runCatching { media.release() }
         if (receiversRegistered) {
             runCatching { unregisterReceiver(screenReceiver) }
-            runCatching { unregisterReceiver(debugReceiver) }
             receiversRegistered = false
+        }
+        if (debugReceiverRegistered) {
+            runCatching { unregisterReceiver(debugReceiver) }
+            debugReceiverRegistered = false
         }
         store.flushNow()
         LiveState.update { it.copy(connected = false) }
@@ -548,6 +553,7 @@ class QuietService : AccessibilityService(), CoverActions {
             put("signals", JSONArray(reading.signals.sorted()))
             put("signature", reading.signature)
             put("tabBarTop", reading.tabBarTop ?: JSONObject.NULL)
+            put("keepBottom", reading.keepBottom ?: JSONObject.NULL)
             put("nodes", nodes)
         }
         runCatching { file.writeText(json.toString(1)) }
@@ -580,7 +586,7 @@ class QuietService : AccessibilityService(), CoverActions {
     /**
      * Debug hooks for adb, e.g.
      * `adb shell am broadcast -a app.quiet.DEBUG --es cmd dump -p app.quiet`
-     * Commands: dump, reload, state, relock.
+     * Commands: dump, reload, state, relock. Debug builds only: any app could send these.
      */
     private val debugReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -604,8 +610,11 @@ class QuietService : AccessibilityService(), CoverActions {
             addAction(Intent.ACTION_USER_PRESENT)
         }
         ContextCompat.registerReceiver(this, screenReceiver, screen, ContextCompat.RECEIVER_NOT_EXPORTED)
-        ContextCompat.registerReceiver(this, debugReceiver, IntentFilter(DEBUG_ACTION), ContextCompat.RECEIVER_EXPORTED)
         receiversRegistered = true
+        if (BuildConfig.DEBUG) {
+            ContextCompat.registerReceiver(this, debugReceiver, IntentFilter(DEBUG_ACTION), ContextCompat.RECEIVER_EXPORTED)
+            debugReceiverRegistered = true
+        }
     }
 
     companion object {

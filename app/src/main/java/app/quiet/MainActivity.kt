@@ -27,31 +27,37 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.quiet.service.QuietService
 import app.quiet.ui.screens.AppDetailScreen
 import app.quiet.ui.screens.AppsScreen
+import app.quiet.ui.screens.DisclosureScreen
 import app.quiet.ui.screens.FocusScreen
 import app.quiet.ui.screens.InsightsScreen
 import app.quiet.ui.screens.InspectorScreen
+import app.quiet.ui.screens.LockDialog
 import app.quiet.ui.screens.OnboardingScreen
 import app.quiet.ui.screens.SettingsScreen
-import app.quiet.ui.screens.StrictWaitDialog
+import app.quiet.ui.screens.SettingsSection
+import app.quiet.ui.screens.SettingsSectionScreen
 import app.quiet.ui.screens.TodayScreen
 import app.quiet.ui.screens.TrackedAppsScreen
 import app.quiet.ui.screens.BottomBar
 import app.quiet.ui.theme.QuietTheme
 import app.quiet.ui.theme.Q
 import quiet.core.settings.Settings
-import quiet.core.settings.Strictness
+import quiet.core.settings.SettingsLock
 
 enum class Tab { TODAY, APPS, INSIGHTS, SETTINGS }
 
 sealed interface Route {
     data class Main(val tab: Tab) : Route
     data class AppDetail(val app: String) : Route
+    data class Section(val section: SettingsSection) : Route
     data object Focus : Route
     data object Tracked : Route
     data object Inspector : Route
+    /** The accessibility disclosure, before sending someone to turn the service on. */
+    data object Disclosure : Route
 }
 
-/** Every settings change in the UI goes through here so strict mode can make loosening wait. */
+/** Every settings change in the UI goes through here so the settings lock can make loosening wait. */
 fun interface SettingsEditor {
     fun edit(transform: (Settings) -> Settings)
 }
@@ -99,11 +105,10 @@ private fun Root() {
     val editor = remember {
         SettingsEditor { transform ->
             val current = store.settings.value
-            val next = transform(current)
-            if (current.strictMode && Strictness.isLoosening(current, next)) {
-                pending = transform
-            } else {
+            if (SettingsLock.allows(current, transform(current), System.currentTimeMillis())) {
                 store.updateSettings(transform)
+            } else {
+                pending = transform
             }
         }
     }
@@ -133,9 +138,11 @@ private fun Root() {
                                         Tab.SETTINGS -> SettingsScreen()
                                     }
                                     is Route.AppDetail -> AppDetailScreen(r.app)
+                                    is Route.Section -> SettingsSectionScreen(r.section)
                                     Route.Focus -> FocusScreen()
                                     Route.Tracked -> TrackedAppsScreen()
                                     Route.Inspector -> InspectorScreen()
+                                    Route.Disclosure -> DisclosureScreen()
                                 }
                             }
                         }
@@ -143,9 +150,8 @@ private fun Root() {
                     }
                 }
                 pending?.let { transform ->
-                    StrictWaitDialog(
-                        seconds = settings.strictDelaySeconds,
-                        onConfirm = {
+                    LockDialog(
+                        onApply = {
                             store.updateSettings(transform)
                             pending = null
                         },

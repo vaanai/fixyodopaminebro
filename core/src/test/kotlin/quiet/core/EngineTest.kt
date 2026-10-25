@@ -15,6 +15,7 @@ import quiet.core.settings.FocusWindow
 import quiet.core.settings.Mode
 import quiet.core.settings.Origin
 import quiet.core.settings.Settings
+import quiet.core.settings.UnlockKind
 import quiet.core.stats.DayStats
 import java.time.DayOfWeek
 import java.time.LocalDateTime
@@ -159,13 +160,52 @@ class EngineTest {
         assertNotNull(see(ig, Fixtures.igReelsTab()).cover)
     }
 
-    @Test fun `no unlock offered when out of unlocks or strict`() {
+    @Test fun `no unlock offered when out of unlocks or unlocks are off`() {
         today = today.copy(unlocks = 3)
         assertFalse(see(ig, Fixtures.igReelsTab()).cover!!.canUnlock)
         today = today.copy(unlocks = 0)
-        settings = settings.copy(strictMode = true)
+        settings = settings.copy(unlocksEnabled = false)
         engine.onLeftApp()
         assertFalse(see(ig, Fixtures.igReelsTab()).cover!!.canUnlock)
+    }
+
+    @Test fun `the cover offers the unlock you chose`() {
+        settings = settings.withApp("instagram") { it.copy(autoSkipTarget = null) }
+        assertEquals(listOf(UnlockKind.VIDEOS), see(ig, Fixtures.igReelsTab()).cover!!.unlockOffers)
+        settings = settings.copy(unlockKind = UnlockKind.MINUTES)
+        assertEquals(listOf(UnlockKind.MINUTES), see(ig, Fixtures.igReelsTab()).cover!!.unlockOffers)
+        settings = settings.copy(unlockKind = UnlockKind.CHOOSE)
+        assertEquals(listOf(UnlockKind.VIDEOS, UnlockKind.MINUTES), see(ig, Fixtures.igReelsTab()).cover!!.unlockOffers)
+    }
+
+    @Test fun `a whole-app limit only unlocks by time`() {
+        settings = settings.withApp("instagram") { it.copy(dailyLimitMinutes = 30) }
+        today = today.copy(appSeconds = mapOf(Fixtures.IG to 30 * 60))
+        val cover = see(ig, Fixtures.igHome()).cover!!
+        assertEquals(CoverReason.APP_LIMIT, cover.reason)
+        assertEquals(listOf(UnlockKind.MINUTES), cover.unlockOffers)
+    }
+
+    @Test fun `blocked home keeps the stories row uncovered`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        val cover = assertNotNull(see(ig, Fixtures.igHomeWithStories(trayBottom = 560)).cover)
+        assertEquals(CoverReason.BLOCKED, cover.reason)
+        assertEquals(550, cover.topPx)
+        assertEquals(2250, cover.bottomPx)
+        assertEquals("Stories", cover.keptName)
+    }
+
+    @Test fun `blocked home covers everything when keeping stories is off or the row is gone`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNull(see(ig, Fixtures.igHome()).cover!!.topPx)
+        settings = settings.withApp("instagram") { it.copy(keepVisible = emptySet()) }
+        val cover = see(ig, Fixtures.igHomeWithStories()).cover!!
+        assertNull(cover.topPx)
+        assertNull(cover.keptName)
+    }
+
+    @Test fun `allowed home with a stories row is not covered`() {
+        assertNull(see(ig, Fixtures.igHomeWithStories()).cover)
     }
 
     @Test fun `limit mode spends the shared allowance then blocks`() {

@@ -2,6 +2,7 @@ package app.quiet.data
 
 import android.content.Context
 import android.util.Log
+import app.quiet.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -162,8 +163,11 @@ class Store(private val context: Context) {
 
     // ---- Rules ----
 
-    /** Folder on shared storage where rule overrides can be dropped (adb push works without root). */
-    fun rulesOverrideDir(): File? = context.getExternalFilesDir("rules")
+    /**
+     * Folder on shared storage where rule overrides can be dropped (adb push works without root).
+     * Debug builds only, so a Play build always runs the rules it shipped with.
+     */
+    fun rulesOverrideDir(): File? = if (BuildConfig.DEBUG) context.getExternalFilesDir("rules") else null
 
     fun dumpsDir(): File? = context.getExternalFilesDir("dumps")
 

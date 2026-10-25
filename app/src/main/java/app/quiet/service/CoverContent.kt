@@ -56,11 +56,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import app.quiet.ui.components.unlockLabel
 import app.quiet.ui.theme.Q
 import kotlinx.coroutines.delay
 import quiet.core.engine.Cover
 import quiet.core.engine.CoverReason
 import quiet.core.settings.Origin
+import quiet.core.settings.UnlockKind
 
 private data class CoverCopy(val icon: ImageVector, val title: String, val body: String)
 
@@ -68,7 +70,8 @@ private fun copyFor(c: Cover): CoverCopy = when (c.reason) {
     CoverReason.BLOCKED -> CoverCopy(
         Icons.Rounded.Block,
         "${c.surfaceLabel} is off",
-        "Messages, profiles and the people you follow are still here. The endless part isn't.",
+        if (c.keptName != null) "${c.keptName} are still up there. Messages and profiles work too."
+        else "Messages, profiles and the people you follow are still here. The endless part isn't.",
     )
     CoverReason.BUDGET_DONE -> CoverCopy(
         Icons.Rounded.HourglassBottom,
@@ -106,6 +109,8 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
     val c = Q.colors
     val cover = model.cover
     val copy = copyFor(cover)
+    // Under a kept area (the Stories row) there's no status bar to clear, and less room.
+    val compact = cover.topPx != null
     Box(
         Modifier
             .fillMaxSize()
@@ -126,7 +131,7 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 28.dp)
-                    .padding(top = 72.dp, bottom = 28.dp),
+                    .padding(top = if (compact) 24.dp else 72.dp, bottom = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -134,13 +139,13 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     BreathRing(cover.pauseSeconds)
                 } else {
                     Box(
-                        Modifier.size(72.dp).clip(CircleShape).background(c.accentDim),
+                        Modifier.size(if (compact) 56.dp else 72.dp).clip(CircleShape).background(c.accentDim),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(copy.icon, null, tint = c.accent, modifier = Modifier.size(34.dp))
+                        Icon(copy.icon, null, tint = c.accent, modifier = Modifier.size(if (compact) 26.dp else 34.dp))
                     }
                 }
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(if (compact) 18.dp else 28.dp))
                 Text(
                     copy.title,
                     style = MaterialTheme.typography.headlineLarge,
@@ -159,7 +164,7 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     Spacer(Modifier.height(16.dp))
                     Text(it, style = MaterialTheme.typography.labelMedium, color = c.accent, textAlign = TextAlign.Center)
                 }
-                Spacer(Modifier.height(36.dp))
+                Spacer(Modifier.height(if (compact) 24.dp else 36.dp))
                 Buttons(cover, actions)
             }
         }
@@ -209,6 +214,10 @@ private fun Buttons(cover: Cover, actions: CoverActions) {
     }
 }
 
+/**
+ * "I want to watch a bit" names exactly what an unlock gives. Tapping it starts the wait; after the
+ * wait you confirm, or pick when the user chose to decide each time.
+ */
 @Composable
 private fun UnlockButton(cover: Cover, actions: CoverActions) {
     val c = Q.colors
@@ -221,20 +230,21 @@ private fun UnlockButton(cover: Cover, actions: CoverActions) {
             remaining--
         }
     }
-    val videoWord = if (cover.reason == CoverReason.APP_LIMIT || cover.unlockVideos <= 0) null else "${cover.unlockVideos} more"
+    val offers = cover.unlockOffers
+    val left = "${cover.unlocksLeft} unlock${if (cover.unlocksLeft == 1) "" else "s"} left today"
     if (waiting && remaining == 0) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (videoWord != null) {
+            for (kind in offers) {
                 Box(Modifier.weight(1f)) {
-                    CoverButton("Watch $videoWord", primary = false) { actions.onUnlock(cover, videos = true) }
+                    CoverButton(
+                        (if (offers.size == 1) "Unlock " else "") + unlockLabel(kind, cover.unlockVideos, cover.unlockMinutes),
+                        primary = false,
+                    ) { actions.onUnlock(cover, videos = kind == UnlockKind.VIDEOS) }
                 }
-            }
-            Box(Modifier.weight(1f)) {
-                CoverButton("${cover.unlockMinutes} minutes", primary = false) { actions.onUnlock(cover, videos = false) }
             }
         }
         Text(
-            "${cover.unlocksLeft} unlock${if (cover.unlocksLeft == 1) "" else "s"} left today",
+            left,
             style = MaterialTheme.typography.labelMedium,
             color = c.textFaint,
             textAlign = TextAlign.Center,
@@ -242,8 +252,9 @@ private fun UnlockButton(cover: Cover, actions: CoverActions) {
         )
         return
     }
+    val what = if (offers.size == 1) unlockLabel(offers[0], cover.unlockVideos, cover.unlockMinutes) else "to watch a bit"
     val label = when {
-        !waiting -> "I want to watch a bit · ${cover.unlocksLeft} left today"
+        !waiting -> "I want $what · ${cover.unlocksLeft} left today"
         else -> "Hold on… $remaining"
     }
     Text(

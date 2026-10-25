@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +28,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
@@ -35,19 +38,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.quiet.QuietApp
 import app.quiet.Tab
+import app.quiet.ui.components.SmallButton
 import app.quiet.ui.theme.Q
 import kotlinx.coroutines.delay
+import quiet.core.engine.Engine
+import quiet.core.settings.SettingsLock
 
 /** Standard scrolling page with the screen's gutters and insets. */
 @Composable
@@ -105,36 +109,108 @@ fun BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
     }
 }
 
+/**
+ * Shown when a change would make Quiet less strict while the settings lock is on. Starting the wait
+ * is saved, so it keeps running if you leave Quiet; once it ends, settings stay open for a few minutes.
+ */
 @Composable
-fun StrictWaitDialog(seconds: Int, onConfirm: () -> Unit, onCancel: () -> Unit) {
+fun LockDialog(onApply: () -> Unit, onCancel: () -> Unit) {
     val c = Q.colors
-    var remaining by remember { mutableIntStateOf(seconds) }
-    LaunchedEffect(Unit) {
-        while (remaining > 0) {
-            delay(1000)
-            remaining--
-        }
-    }
+    val store = QuietApp.store
+    val s by store.settings.collectAsStateWithLifecycle()
+    val now = rememberNow()
+    val state = SettingsLock.state(s, now)
+    val openMinutes = SettingsLock.OPEN_MS / 60_000
     AlertDialog(
         onDismissRequest = onCancel,
         containerColor = c.surface,
-        title = { Text("Strict mode is on", color = c.text) },
+        icon = { Icon(if (state is SettingsLock.State.Locked) Icons.Rounded.Lock else Icons.Rounded.LockOpen, null, tint = c.accent) },
+        title = {
+            Text(
+                when (state) {
+                    is SettingsLock.State.Locked -> "Settings are locked"
+                    is SettingsLock.State.Waiting -> "Unlocking settings"
+                    else -> "Settings are open"
+                },
+                color = c.text,
+            )
+        },
         text = {
             Text(
-                if (remaining > 0) "This change makes Quiet easier to get past. Sit with it for $remaining seconds, then decide."
-                else "Still want to make this change?",
+                when (state) {
+                    is SettingsLock.State.Locked ->
+                        "This makes Quiet less strict, so it waits ${SettingsLock.formatWait(s.lockSeconds)} first: the lock you chose. " +
+                            "Making Quiet stricter is always instant."
+                    is SettingsLock.State.Waiting ->
+                        "${Engine.formatClock(state.opensAt - now)} to go. You can leave Quiet, the wait keeps running. " +
+                            "Afterwards settings stay open for $openMinutes minutes."
+                    is SettingsLock.State.Open -> "Go ahead. Settings lock again in ${Engine.formatClock(state.closesAt - now)}."
+                    SettingsLock.State.Off -> "Settings aren't locked."
+                },
                 color = c.textDim,
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, enabled = remaining == 0) {
-                Text(if (remaining > 0) "Wait ${remaining}s" else "Make the change", color = if (remaining > 0) c.textFaint else c.accent)
+            when (state) {
+                is SettingsLock.State.Locked -> TextButton(onClick = {
+                    store.updateSettings { SettingsLock.startWait(it, System.currentTimeMillis()) }
+                }) { Text("Start the wait", color = c.accent) }
+                is SettingsLock.State.Waiting -> TextButton(onClick = {}, enabled = false) {
+                    Text("Wait ${Engine.formatClock(state.opensAt - now)}", color = c.textFaint)
+                }
+                else -> TextButton(onClick = onApply) { Text("Make the change", color = c.accent) }
             }
         },
         dismissButton = {
-            TextButton(onClick = onCancel) { Text("Keep it strict", color = c.text) }
+            TextButton(onClick = onCancel) {
+                Text(if (state is SettingsLock.State.Locked) "Keep it locked" else "Never mind", color = c.text)
+            }
         },
     )
+}
+
+/** The settings lock at a glance, with the one action that makes sense right now. */
+@Composable
+fun LockStatus(s: quiet.core.settings.Settings, now: Long, onSetUp: (() -> Unit)?) {
+    val c = Q.colors
+    val store = QuietApp.store
+    val state = SettingsLock.state(s, now)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            if (state is SettingsLock.State.Locked || state is SettingsLock.State.Waiting) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+            null,
+            tint = if (state == SettingsLock.State.Off) c.textDim else c.accent,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                when (state) {
+                    SettingsLock.State.Off -> "Settings lock is off"
+                    is SettingsLock.State.Locked -> "Settings are locked"
+                    is SettingsLock.State.Waiting -> "Unlocking in ${Engine.formatClock(state.opensAt - now)}"
+                    is SettingsLock.State.Open -> "Open for ${Engine.formatClock(state.closesAt - now)}"
+                },
+                style = MaterialTheme.typography.titleSmall,
+                color = c.text,
+            )
+            Text(
+                when (state) {
+                    SettingsLock.State.Off -> "Changes apply straight away."
+                    else -> "Loosening anything waits ${SettingsLock.formatWait(s.lockSeconds)}."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textDim,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        when (state) {
+            SettingsLock.State.Off -> onSetUp?.let { SmallButton("Set one up", accent = true, onClick = it) }
+            is SettingsLock.State.Locked -> SmallButton("Unlock") { store.updateSettings { SettingsLock.startWait(it, System.currentTimeMillis()) } }
+            is SettingsLock.State.Waiting -> SmallButton("Cancel") { store.updateSettings { SettingsLock.relock(it) } }
+            is SettingsLock.State.Open -> SmallButton("Lock now") { store.updateSettings { SettingsLock.relock(it) } }
+        }
+    }
 }
 
 /** Wall clock that ticks every [periodMs] while on screen. */
@@ -160,16 +236,12 @@ fun openAppInfo(context: Context) {
     runCatching { context.startActivity(intent) }
 }
 
-@android.annotation.SuppressLint("BatteryLife")
-fun requestBatteryExemption(context: Context) {
-    val intent = Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    runCatching { context.startActivity(intent) }.onFailure {
-        runCatching {
-            context.startActivity(Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
-    }
+fun openUrl(context: Context, url: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }
+
+const val PRIVACY_POLICY_URL = "https://github.com/vaanai/fixyodopaminebro/blob/main/docs/privacy-policy.md"
 
 fun isBatteryExempt(context: Context): Boolean =
     context.getSystemService(android.os.PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true

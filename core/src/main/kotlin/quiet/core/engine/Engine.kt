@@ -8,6 +8,7 @@ import quiet.core.settings.Mode
 import quiet.core.settings.Origin
 import quiet.core.settings.Settings
 import quiet.core.settings.UNLIMITED
+import quiet.core.settings.UnlockKind
 import quiet.core.stats.DayStats
 import java.time.Instant
 import java.time.ZoneId
@@ -61,7 +62,7 @@ data class Cover(
     val offerBack: Boolean,
     val canUnlock: Boolean,
     val unlockMinutes: Int,
-    /** "Watch N more" unlock size, 0 when that kind of unlock is off. */
+    /** "Watch N more" unlock size. */
     val unlockVideos: Int,
     val unlockWaitSeconds: Int,
     val unlocksLeft: Int,
@@ -71,7 +72,15 @@ data class Cover(
     val bottomPx: Int?,
     val origin: Origin? = null,
     val allowedSwipes: Int = 0,
+    val unlockKind: UnlockKind = UnlockKind.MINUTES,
+    /** The cover starts at this y, leaving what's above it usable (like the Stories row), or at the top when null. */
+    val topPx: Int? = null,
+    /** What stays visible above the cover ("Stories"), when [topPx] is set. */
+    val keptName: String? = null,
 ) {
+    /** The unlocks the block screen offers. */
+    val unlockOffers: List<UnlockKind> get() = unlockKind.offers(appLimit = reason == CoverReason.APP_LIMIT)
+
     /** Two covers with the same key are the same screen; the overlay is kept rather than redrawn. */
     val key: String get() = "$reason/$app/$surface"
 }
@@ -232,6 +241,8 @@ class Engine {
 
         fun cover(reason: CoverReason, offerBack: Boolean = false, fullScreen: Boolean = false): Cover {
             val canUnlock = reason != CoverReason.PAUSE && s.canUnlock(focus) && unlocksLeft > 0
+            val keep = rules.surface(surface)?.keep
+            val top = input.reading.keepBottom?.takeIf { !fullScreen && keep != null && s.keepsVisible(appId, surface) }
             return Cover(
                 reason = reason,
                 app = appId,
@@ -250,6 +261,9 @@ class Engine {
                 bottomPx = if (fullScreen || s.coverStyle == quiet.core.settings.CoverStyle.FULL_SCREEN) null else input.reading.tabBarTop,
                 origin = session?.origin,
                 allowedSwipes = session?.let { s.viewerSwipesFor(appId, it.origin) } ?: 0,
+                unlockKind = s.unlockKind,
+                topPx = top,
+                keptName = keep?.name?.takeIf { top != null },
             )
         }
 

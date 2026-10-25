@@ -60,8 +60,11 @@ class Overlays(private val service: AccessibilityService, private val actions: C
     private val owner = OverlayOwner()
     private val main = Handler(Looper.getMainLooper())
 
+    /** Where the cover window sits: from [top] down, [height] tall, or to the bottom of the screen when null. */
+    private data class Frame(val top: Int, val height: Int?)
+
     private var coverView: ComposeView? = null
-    private var coverHeight: Int? = null
+    private var coverFrame: Frame? = null
     private val coverState = mutableStateOf<CoverModel?>(null)
 
     private var pillView: ComposeView? = null
@@ -75,13 +78,13 @@ class Overlays(private val service: AccessibilityService, private val actions: C
     val currentCoverKey: String? get() = coverState.value?.cover?.key
 
     fun showCover(model: CoverModel) {
-        val height = model.cover.bottomPx
+        val frame = frameFor(model.cover)
         coverState.value = model
         val existing = coverView
         if (existing != null) {
-            if (height != coverHeight) {
-                coverHeight = height
-                runCatching { wm.updateViewLayout(existing, coverParams(height)) }
+            if (frame != coverFrame) {
+                coverFrame = frame
+                runCatching { wm.updateViewLayout(existing, coverParams(frame)) }
             }
             return
         }
@@ -93,17 +96,34 @@ class Overlays(private val service: AccessibilityService, private val actions: C
                 }
             }
         }
-        if (add(view, coverParams(height))) {
+        if (add(view, coverParams(frame))) {
             coverView = view
-            coverHeight = height
+            coverFrame = frame
         }
     }
 
     fun hideCover() {
         coverView?.let { remove(it) }
         coverView = null
-        coverHeight = null
+        coverFrame = null
         coverState.value = null
+    }
+
+    /** Covers start at the top, or below a kept area like the Stories row, and stop at the tab bar or the screen's bottom. */
+    private fun frameFor(cover: Cover): Frame {
+        val top = cover.topPx?.takeIf { it > 0 } ?: return Frame(0, cover.bottomPx)
+        val bottom = cover.bottomPx ?: screenHeight()
+        val minHeight = (service.resources.displayMetrics.density * MIN_COVER_DP).toInt()
+        // Too little room under the kept area: cover it all rather than squeeze the block screen.
+        if (bottom - top < minHeight) return Frame(0, cover.bottomPx)
+        return Frame(top, bottom - top)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun screenHeight(): Int = if (android.os.Build.VERSION.SDK_INT >= 30) {
+        wm.maximumWindowMetrics.bounds.height()
+    } else {
+        android.util.DisplayMetrics().also { wm.defaultDisplay.getRealMetrics(it) }.heightPixels
     }
 
     fun showPill(model: PillModel?) {
@@ -166,9 +186,10 @@ class Overlays(private val service: AccessibilityService, private val actions: C
             setContent(content)
         }
 
-    private fun coverParams(height: Int?): WindowManager.LayoutParams =
-        baseParams(WindowManager.LayoutParams.MATCH_PARENT, height ?: WindowManager.LayoutParams.MATCH_PARENT).apply {
+    private fun coverParams(frame: Frame): WindowManager.LayoutParams =
+        baseParams(WindowManager.LayoutParams.MATCH_PARENT, frame.height ?: WindowManager.LayoutParams.MATCH_PARENT).apply {
             gravity = Gravity.TOP or Gravity.START
+            y = frame.top
             flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         }
@@ -198,5 +219,9 @@ class Overlays(private val service: AccessibilityService, private val actions: C
             wm.removeViewImmediate(view)
         } catch (_: Exception) {
         }
+    }
+
+    private companion object {
+        const val MIN_COVER_DP = 320
     }
 }

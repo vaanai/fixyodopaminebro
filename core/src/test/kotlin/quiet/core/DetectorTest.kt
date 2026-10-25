@@ -25,6 +25,33 @@ class DetectorTest {
         assertEquals("home", Detector.read(ig, Fixtures.igHome()).surface)
     }
 
+    @Test fun `stories row bottom includes the names under the bubbles`() {
+        val r = Detector.read(ig, Fixtures.igHomeWithStories(trayBottom = 560))
+        assertEquals("home", r.surface)
+        assertEquals(550, r.keepBottom)
+    }
+
+    @Test fun `stories row found by its container id`() {
+        assertEquals(600, Detector.read(ig, Fixtures.igHomeWithStories(trayBottom = 600, byIdOnly = true)).keepBottom)
+    }
+
+    @Test fun `no stories row means nothing to keep`() {
+        assertNull(Detector.read(ig, Fixtures.igHome()).keepBottom)
+    }
+
+    @Test fun `a stories row reaching far down the screen is not kept`() {
+        assertNull(Detector.read(ig, Fixtures.igHomeWithStories(trayTop = 1300, trayBottom = 1600, byIdOnly = true)).keepBottom)
+    }
+
+    @Test fun `keep areas only apply on their own surface`() {
+        val reels = Screen(IG).apply {
+            node(id = "$IG:id/reels_tray_container", top = 200, bottom = 500)
+            node(id = "$IG:id/clips_viewer_view_pager", top = 0, bottom = 2250)
+            Fixtures.igTabs(this, "clips_tab")
+        }.build()
+        assertNull(Detector.read(ig, reels).keepBottom)
+    }
+
     @Test fun `instagram thread is messages`() {
         assertEquals(SurfaceKind.MESSAGES, Detector.read(ig, Fixtures.igThread()).kind)
     }

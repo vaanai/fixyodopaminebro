@@ -71,6 +71,7 @@ fun InspectorScreen() {
             Line("Surface", r?.surface ?: "unknown")
             Line("Kind", r?.kind?.name ?: "–")
             Line("Tab bar at", r?.tabBarTop?.toString() ?: "–")
+            Line("Kept until", r?.keepBottom?.toString() ?: "–")
             Line("Signature", r?.signature?.ifEmpty { "–" } ?: "–")
             if (r != null && r.signals.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
@@ -117,12 +118,14 @@ fun InspectorScreen() {
         QCard {
             for ((app, src) in rules.sources) Line(app, src)
             for ((app, err) in rules.errors) Text("$app: $err", style = MaterialTheme.typography.bodySmall, color = c.danger)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Override a rule file by putting <app>.json in ${QuietApp.store.rulesOverrideDir()?.absolutePath}, then Reload.",
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textFaint,
-            )
+            QuietApp.store.rulesOverrideDir()?.let { dir ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Override a rule file by putting <app>.json in ${dir.absolutePath}, then Reload.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textFaint,
+                )
+            }
             Spacer(Modifier.height(8.dp))
             SecondaryButton("Reload rules") {
                 QuietApp.store.reloadRules()

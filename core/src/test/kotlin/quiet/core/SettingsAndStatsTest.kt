@@ -9,6 +9,7 @@ import quiet.core.settings.Origin
 import quiet.core.settings.Preset
 import quiet.core.settings.Settings
 import quiet.core.settings.SettingsCodec
+import quiet.core.settings.UnlockKind
 import quiet.core.stats.DayStats
 import quiet.core.stats.StatsCodec
 import quiet.core.stats.StatsMath
@@ -25,6 +26,44 @@ class SettingsAndStatsTest {
             onboarded = true,
         ).withApp("instagram") { it.copy(viewerSwipes = it.viewerSwipes + (Origin.MESSAGES to 2), dailyLimitMinutes = 45) }
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+    }
+
+    @Test fun `new settings round trip`() {
+        val s = Settings(
+            unlockKind = UnlockKind.CHOOSE,
+            lockSeconds = 180,
+            lockOpensAt = 1234L,
+            lockPromptSeen = true,
+            disclosureAccepted = true,
+            onboarded = true,
+        ).withApp("instagram") { it.copy(keepVisible = emptySet()) }
+        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+    }
+
+    @Test fun `old strict mode becomes no unlocks and a settings lock`() {
+        val s = SettingsCodec.decode("""{"version": 1, "strictMode": true, "strictDelaySeconds": 30, "unlocksEnabled": true, "onboarded": true}""")
+        assertEquals(false, s.unlocksEnabled)
+        assertEquals(60, s.lockSeconds)
+        assertEquals(300, SettingsCodec.decode("""{"strictMode": true, "strictDelaySeconds": 300}""").lockSeconds)
+        assertEquals(0, SettingsCodec.decode("""{"strictMode": false, "strictDelaySeconds": 300}""").lockSeconds)
+    }
+
+    @Test fun `old unlock settings keep working the same way`() {
+        // Version 1 offered both kinds, or minutes only when "watch N more" was 0.
+        assertEquals(UnlockKind.CHOOSE, SettingsCodec.decode("""{"unlockVideos": 5}""").unlockKind)
+        val minutesOnly = SettingsCodec.decode("""{"unlockVideos": 0}""")
+        assertEquals(UnlockKind.MINUTES, minutesOnly.unlockKind)
+        assertEquals(5, minutesOnly.unlockVideos)
+        assertEquals(UnlockKind.VIDEOS, SettingsCodec.decode("{}").unlockKind)
+    }
+
+    @Test fun `people set up before the disclosure screen count as having agreed`() {
+        assertEquals(true, SettingsCodec.decode("""{"onboarded": true}""").disclosureAccepted)
+        assertEquals(false, SettingsCodec.decode("{}").disclosureAccepted)
+    }
+
+    @Test fun `blocking home keeps stories by default`() {
+        assertEquals(true, Settings().keepsVisible("instagram", "home"))
     }
 
     @Test fun `garbage settings fall back to defaults`() {

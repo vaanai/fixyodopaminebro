@@ -71,6 +71,20 @@ object Fixtures {
         igTabs(this, "feed_tab")
     }.build()
 
+    /** Home with the Stories row: a tray container holding story bubbles, each with a name under it. */
+    fun igHomeWithStories(trayTop: Int = 230, trayBottom: Int = 560, byIdOnly: Boolean = false): UiTree = Screen(IG).apply {
+        val tray = node(id = if (byIdOnly) "$IG:id/reels_tray_container" else null, top = trayTop, bottom = trayBottom)
+        if (!byIdOnly) {
+            for ((i, name) in listOf("Your story", "sam's story at column 2. Unseen.").withIndex()) {
+                val item = node(parent = tray, top = trayTop + 20, bottom = trayBottom - 10, left = i * 260, right = i * 260 + 240)
+                node(parent = item, desc = name, clickable = true, top = trayTop + 20, bottom = trayBottom - 80, left = i * 260, right = i * 260 + 240)
+                node(parent = item, text = name.substringBefore("'s"), top = trayBottom - 70, bottom = trayBottom - 10, left = i * 260, right = i * 260 + 240)
+            }
+        }
+        node(text = "friend posted a photo", top = trayBottom + 40, bottom = trayBottom + 140)
+        igTabs(this, "feed_tab")
+    }.build()
+
     fun igThread(): UiTree = Screen(IG).apply {
         node(text = "lol watch this", top = 400, bottom = 500)
         node(id = "$IG:id/row_thread_composer_edittext", hint = "Message...", cls = "android.widget.EditText", editable = true, top = 2200, bottom = 2300)

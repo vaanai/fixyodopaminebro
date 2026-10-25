@@ -31,7 +31,7 @@ jobs:
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           SDKMANAGER="$(find "$SDK/cmdline-tools" -name sdkmanager -type f | head -1)"
           yes | "$SDKMANAGER" --licenses > /dev/null
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" > /dev/null
 
       - name: Unit tests
         run: ./gradlew :core:test :app:testDebugUnitTest --no-daemon
@@ -41,6 +41,30 @@ jobs:
 
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk quiet-debug.apk
+
+      # The Play Store build: shrunk with R8, and signed with the upload key when the repo has it
+      # (secrets described in docs/releasing.md). Without the key this still proves the release build works.
+      - name: Build release bundle
+        env:
+          QUIET_UPLOAD_KEYSTORE_B64: ${{ secrets.QUIET_UPLOAD_KEYSTORE_B64 }}
+          QUIET_UPLOAD_STORE_PASSWORD: ${{ secrets.QUIET_UPLOAD_STORE_PASSWORD }}
+          QUIET_UPLOAD_KEY_ALIAS: ${{ secrets.QUIET_UPLOAD_KEY_ALIAS }}
+          QUIET_UPLOAD_KEY_PASSWORD: ${{ secrets.QUIET_UPLOAD_KEY_PASSWORD }}
+        run: |
+          if [ -n "$QUIET_UPLOAD_KEYSTORE_B64" ]; then
+            echo "$QUIET_UPLOAD_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            export QUIET_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
+            echo "SIGNED_BUNDLE=1" >> "$GITHUB_ENV"
+          fi
+          ./gradlew :app:bundleRelease --no-daemon
+          rm -f "$RUNNER_TEMP/upload.jks"
+
+      - uses: actions/upload-artifact@v4
+        if: env.SIGNED_BUNDLE == '1'
+        with:
+          name: quiet-release-aab
+          path: app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
 
       - uses: actions/upload-artifact@v4
         with:

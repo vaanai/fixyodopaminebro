@@ -44,6 +44,19 @@ class RuleParserTest {
         assertFailsWith<RuleParseException> { RuleParser.parse(minimal().replace("\"schemaVersion\": 2", "\"schemaVersion\": 1")) }
     }
 
+    @Test fun `keep areas parse and must name a known signal`() {
+        val withKeep = minimal().replace(
+            """{"id": "s", "label": "S", "kind": "VIDEO_FEED"}""",
+            """{"id": "s", "label": "S", "kind": "VIDEO_FEED", "keep": {"signal": "a", "name": "Stories"}}""",
+        )
+        assertEquals("Stories", RuleParser.parse(withKeep).surface("s")?.keep?.name)
+        assertFailsWith<RuleParseException> { RuleParser.parse(withKeep.replace("\"signal\": \"a\"", "\"signal\": \"nope\"")) }
+    }
+
+    @Test fun `instagram home keeps the stories row`() {
+        assertEquals("storiesTray", Fixtures.rules("instagram").surface("home")?.keep?.signal)
+    }
+
     @Test fun `auto skip must be a nav target`() {
         assertFailsWith<RuleParseException> { RuleParser.parse(minimal(extra = """, "autoSkipTarget": "inbox"""")) }
     }

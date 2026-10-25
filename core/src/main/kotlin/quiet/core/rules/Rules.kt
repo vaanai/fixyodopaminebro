@@ -106,12 +106,24 @@ data class SurfaceRule(
     val condition: Condition,
 )
 
+/**
+ * Part of a surface that can stay usable while the rest is covered, like the Stories row above
+ * Instagram's Home feed. The cover starts below the lowest node matching [signal].
+ */
+data class KeepArea(
+    val signal: String,
+    /** What's kept, as the user calls it: "Stories". */
+    val name: String,
+    val description: String = "",
+)
+
 /** A surface the user can set a policy for. Several rules can lead to the same surface. */
 data class SurfaceInfo(
     val id: String,
     val label: String,
     val kind: SurfaceKind,
     val description: String = "",
+    val keep: KeepArea? = null,
 )
 
 /** Where a button on the block screen should take you inside the app. */
