@@ -22,6 +22,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.content.ContextCompat
+import app.quiet.ads.SkipWaitActivity
 import app.quiet.BuildConfig
 import app.quiet.MainActivity
 import app.quiet.QuietApp
@@ -82,6 +83,7 @@ class QuietService : AccessibilityService(), CoverActions {
     private var dumpRequested = false
     private var lastLoggedSurface: String? = null
     private val genericUnlocks = mutableMapOf<String, Long>()
+    private val skippedWaits = mutableMapOf<String, Long>()
     private var receiversRegistered = false
     private var debugReceiverRegistered = false
 
@@ -209,6 +211,12 @@ class QuietService : AccessibilityService(), CoverActions {
         val fg = currentForeground()
         onForeground(fg, now)
         if (!screenOn) return
+        // Nothing is ever drawn over Quiet's own screens: above all the ad screen and the ad it shows.
+        if (SkipWaitActivity.isStarting || ownScreenActive()) {
+            overlays.hideAll()
+            media.release()
+            return
+        }
         val settings = store.settings.value
         val rules = fg?.let { store.rules.value.forPackage(it) }
 
@@ -262,7 +270,16 @@ class QuietService : AccessibilityService(), CoverActions {
         val s = store.settings.value
         val cover = d.cover
         if (cover != null) {
-            overlays.showCover(CoverModel(cover, s.accent, todayLine()))
+            val now = System.currentTimeMillis()
+            overlays.showCover(
+                CoverModel(
+                    cover,
+                    s.accent,
+                    todayLine(),
+                    adSkip = s.adSkipsWait,
+                    waitSkipped = (skippedWaits[cover.app] ?: 0L) > now,
+                ),
+            )
             if (s.pauseVideo) media.engage()
             overlays.showPill(null)
         } else {
@@ -455,9 +472,26 @@ class QuietService : AccessibilityService(), CoverActions {
             else -> engine.unlock(cover.app, s.unlockMinutes, now)
         }
         store.mutateToday(now) { it.copy(unlocks = it.unlocks + 1) }
+        skippedWaits.remove(cover.app)
         store.addLog(cover.appName, if (videos) "Unlocked ${plural(s.unlockVideos, "more video")}" else "Unlocked for ${s.unlockMinutes} min")
         overlays.hideCover()
         media.release()
+        scheduleEval()
+    }
+
+    override fun onSkipWaitWithAd(cover: Cover) {
+        val back = foreground ?: cover.app.takeIf { it.contains('.') } ?: ""
+        SkipWaitActivity.starting()
+        overlays.hideCover()
+        media.release()
+        runCatching {
+            startActivity(SkipWaitActivity.intent(this, cover.app, cover.appName, back).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure { Log.w(TAG, "couldn't open the skip-wait screen", it) }
+    }
+
+    /** One ad was watched for [app]: its next block screen goes straight to the unlock choices. */
+    fun skipWait(app: String) {
+        skippedWaits[app] = System.currentTimeMillis() + SKIPPED_WAIT_KEEP_MS
         scheduleEval()
     }
 
@@ -504,6 +538,13 @@ class QuietService : AccessibilityService(), CoverActions {
     fun refresh() = scheduleEval()
 
     // ---- helpers ----
+
+    /** One of Quiet's own activities (or the ad on top of one) is the active app window. Never our overlays. */
+    private fun ownScreenActive(): Boolean = runCatching {
+        windows.any { w ->
+            w.type == AccessibilityWindowInfo.TYPE_APPLICATION && w.isActive && w.root?.packageName?.toString() == packageName
+        }
+    }.getOrDefault(false)
 
     private fun currentForeground(): String? {
         val fromWindows = runCatching {
@@ -691,6 +732,8 @@ class QuietService : AccessibilityService(), CoverActions {
         private const val BOUNCE_MS = 2_000L
         private const val EVAL_MIN_DELAY_MS = 40L
         private const val HELD_RECHECK_MS = 120L
+        /** How long a wait skipped with an ad stays skipped if no unlock is picked. */
+        private const val SKIPPED_WAIT_KEEP_MS = 10 * 60_000L
 
         @Volatile
         var instance: QuietService? = null

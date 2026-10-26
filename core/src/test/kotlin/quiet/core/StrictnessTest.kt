@@ -25,6 +25,12 @@ class StrictnessTest {
         val minutes = base.copy(unlockKind = UnlockKind.MINUTES)
         assertFalse(Strictness.isLoosening(minutes, minutes.copy(unlockVideos = 20)))
         assertFalse(Strictness.isLoosening(base, base.withApp("instagram") { it.copy(dailyLimitMinutes = 30) }))
+        assertFalse(Strictness.isLoosening(base, base.copy(adSkipsWait = false)))
+    }
+
+    @Test fun `turning on the ad that skips the wait is loosening`() {
+        val noAd = base.copy(adSkipsWait = false)
+        assertTrue(Strictness.isLoosening(noAd, noAd.copy(adSkipsWait = true)))
     }
 
     @Test fun `loosening changes are caught`() {

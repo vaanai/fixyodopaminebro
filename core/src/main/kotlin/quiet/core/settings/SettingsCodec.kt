@@ -16,6 +16,7 @@ object SettingsCodec {
         put("unlockMinutes", s.unlockMinutes)
         put("unlockVideos", s.unlockVideos)
         put("unlockWaitSeconds", s.unlockWaitSeconds)
+        put("adSkipsWait", s.adSkipsWait)
         put("unlocksPerDay", s.unlocksPerDay)
         put("pauseSeconds", s.pauseSeconds)
         put("pauseMinutes", s.pauseMinutes)
@@ -74,6 +75,7 @@ object SettingsCodec {
             unlockMinutes = o.optInt("unlockMinutes", d.unlockMinutes),
             unlockVideos = if (legacyVideos <= 0) d.unlockVideos else legacyVideos,
             unlockWaitSeconds = o.optInt("unlockWaitSeconds", d.unlockWaitSeconds),
+            adSkipsWait = o.optBoolean("adSkipsWait", d.adSkipsWait),
             unlocksPerDay = o.optInt("unlocksPerDay", d.unlocksPerDay),
             pauseSeconds = o.optInt("pauseSeconds", d.pauseSeconds),
             pauseMinutes = o.optInt("pauseMinutes", d.pauseMinutes),

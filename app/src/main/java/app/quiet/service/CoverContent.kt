@@ -163,15 +163,15 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     Text(it, style = MaterialTheme.typography.labelMedium, color = c.accent, textAlign = TextAlign.Center)
                 }
                 Spacer(Modifier.height(36.dp))
-                Buttons(cover, actions)
+                Buttons(model, actions)
             }
         }
     }
 }
 
 @Composable
-private fun Buttons(cover: Cover, actions: CoverActions) {
-    val c = Q.colors
+private fun Buttons(model: CoverModel, actions: CoverActions) {
+    val cover = model.cover
     Column(
         Modifier.fillMaxWidth().widthIn(max = 420.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -214,20 +214,22 @@ private fun Buttons(cover: Cover, actions: CoverActions) {
         }
         if (cover.canUnlock) {
             Spacer(Modifier.height(6.dp))
-            UnlockButton(cover, actions)
+            UnlockButton(model, actions)
         }
     }
 }
 
 /**
  * "I want to watch a bit" names exactly what an unlock gives. Tapping it starts the wait; after the
- * wait you confirm, or pick when the user chose to decide each time.
+ * wait you confirm, or pick when the user chose to decide each time. During the wait, one ad on
+ * Quiet's own screen is the optional quicker way through.
  */
 @Composable
-private fun UnlockButton(cover: Cover, actions: CoverActions) {
+private fun UnlockButton(model: CoverModel, actions: CoverActions) {
     val c = Q.colors
-    var waiting by remember { mutableStateOf(false) }
-    var remaining by remember { mutableIntStateOf(cover.unlockWaitSeconds) }
+    val cover = model.cover
+    var waiting by remember(model.waitSkipped) { mutableStateOf(model.waitSkipped) }
+    var remaining by remember(model.waitSkipped) { mutableIntStateOf(if (model.waitSkipped) 0 else cover.unlockWaitSeconds) }
     LaunchedEffect(waiting) {
         if (!waiting) return@LaunchedEffect
         while (remaining > 0) {
@@ -249,7 +251,7 @@ private fun UnlockButton(cover: Cover, actions: CoverActions) {
             }
         }
         Text(
-            left,
+            if (model.waitSkipped) "Wait skipped · $left" else left,
             style = MaterialTheme.typography.labelMedium,
             color = c.textFaint,
             textAlign = TextAlign.Center,
@@ -275,6 +277,9 @@ private fun UnlockButton(cover: Cover, actions: CoverActions) {
             }
             .padding(vertical = 14.dp),
     )
+    if (waiting && remaining > 0 && model.adSkip) {
+        CoverButton("Skip the wait with 1 short ad", primary = false) { actions.onSkipWaitWithAd(cover) }
+    }
 }
 
 @Composable

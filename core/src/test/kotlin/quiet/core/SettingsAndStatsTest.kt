@@ -37,6 +37,8 @@ class SettingsAndStatsTest {
             disclosureAccepted = true,
             onboarded = true,
             linksPlay = false,
+            adSkipsWait = false,
+            unlockWaitSeconds = 90,
         ).withApp("instagram") { it.copy(autoSkipTarget = null) }
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
     }
@@ -107,7 +109,7 @@ class SettingsAndStatsTest {
 
     @Test fun `stats round trip`() {
         val d = DayStats("2026-10-22", appSeconds = mapOf("a" to 3), feedSeconds = 9, blocks = 2,
-            hourShortForm = List(24) { it }, videos = mapOf("instagram" to 4))
+            hourShortForm = List(24) { it }, videos = mapOf("instagram" to 4), unlocks = 2, adsWatched = 1)
         assertEquals(mapOf(d.date to d), StatsCodec.decode(StatsCodec.encode(mapOf(d.date to d))))
     }
 

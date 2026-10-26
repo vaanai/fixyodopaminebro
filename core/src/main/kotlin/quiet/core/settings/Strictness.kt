@@ -27,6 +27,7 @@ object Strictness {
         if (new.unlockMinutes > old.unlockMinutes) return true
         if (UnlockKind.VIDEOS in newOffers && new.unlockVideos > old.unlockVideos) return true
         if (new.unlockWaitSeconds < old.unlockWaitSeconds) return true
+        if (!old.adSkipsWait && new.adSkipsWait) return true
         if (new.unlocksPerDay > old.unlocksPerDay) return true
         if (new.pauseSeconds < old.pauseSeconds) return true
         if (new.pauseMinutes > old.pauseMinutes) return true

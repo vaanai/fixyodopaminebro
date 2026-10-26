@@ -1,5 +1,7 @@
 package app.quiet.ui.screens
 
+import app.quiet.ads.AdConsent
+import android.app.Activity
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -326,8 +328,22 @@ private fun UnlocksPage() {
                 StepperRow("Unlocks per day", s.unlocksPerDay, options = listOf(1, 2, 3, 4, 5, 8, 10, 20), format = { "$it" }) { v ->
                     editor.edit { it.copy(unlocksPerDay = v) }
                 }
-                StepperRow("Wait before unlocking", s.unlockWaitSeconds, "A moment to change your mind.", options = listOf(0, 5, 10, 15, 20, 30, 45, 60), format = { "${it}s" }) { v ->
+                StepperRow(
+                    "Wait before unlocking",
+                    s.unlockWaitSeconds,
+                    "A moment to change your mind.",
+                    options = listOf(0, 5, 10, 15, 20, 30, 45, 60, 90, 120),
+                    format = { if (it < 60) "${it}s" else if (it % 60 == 0) "${it / 60}m" else "${it / 60}m ${it % 60}s" },
+                ) { v ->
                     editor.edit { it.copy(unlockWaitSeconds = v) }
+                }
+                if (s.unlockWaitSeconds > 0) {
+                    SwitchRow(
+                        "Skip the wait with an ad",
+                        s.adSkipsWait,
+                        if (s.adSkipsWait) "While you wait, you can watch 1 short ad instead. It opens in Quiet, never over another app."
+                        else "Unlocking always means waiting.",
+                    ) { on -> editor.edit { it.copy(adSkipsWait = on) } }
                 }
                 Spacer(Modifier.height(6.dp))
                 Note("Whether focus time can be unlocked is set under Focus schedule.")
@@ -424,7 +440,7 @@ private fun LockPage() {
         QCard {
             Bullet("Pausing protection, or turning off an app")
             Bullet("Allowing, limiting or pausing a feed that was blocked")
-            Bullet("More unlocks, bigger ones, a shorter wait to unlock, or a new kind of unlock")
+            Bullet("More unlocks, bigger ones, a shorter wait to unlock, a new kind of unlock, or turning on the ad that skips the wait")
             Bullet("A bigger daily allowance, or a looser daily app limit")
             Bullet("Ending focus early, or deleting a focus time")
         }
@@ -471,7 +487,7 @@ private fun PrivacyPage() {
     val c = Q.colors
     var confirmReset by remember { mutableStateOf(false) }
     Page {
-        ScreenHeader("Privacy and your data", "Quiet works entirely on your phone. There's no account and no server.", onBack = { nav.back() })
+        ScreenHeader("Privacy and your data", "Blocking and time tracking work entirely on your phone. There's no account and no server.", onBack = { nav.back() })
 
         SectionTitle("What Quiet reads")
         QCard {
@@ -483,7 +499,17 @@ private fun PrivacyPage() {
         SectionTitle("What Quiet keeps")
         QCard {
             Bullet("Your settings, daily time per app, and a short activity log, on this phone only.")
-            Bullet("Nothing is sent anywhere or shared with anyone. Uninstalling Quiet deletes it all.")
+            Bullet("None of it is sent anywhere or shared with anyone. Uninstalling Quiet deletes it all.")
+        }
+
+        SectionTitle("The one ad")
+        QCard {
+            Bullet("When you unlock, you can watch one short ad instead of waiting. It shows on Quiet's own screen, only when you ask for it.")
+            Bullet("Google AdMob shows it. Google collects things like your IP address and advertising ID to do that. Nothing from your settings, stats or screens goes with it.")
+            val activity = context as? Activity
+            if (activity != null && AdConsent.privacyOptionsRequired(activity)) {
+                NavRow("Ad privacy choices", "Change what you agreed to for ads.", Icons.Rounded.Policy) { AdConsent.showPrivacyOptions(activity) }
+            }
         }
 
         SectionTitle("Your data")

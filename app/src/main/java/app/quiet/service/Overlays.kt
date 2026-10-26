@@ -45,9 +45,19 @@ interface CoverActions {
     /** [videos] true for "watch N more", false for "N minutes". */
     fun onUnlock(cover: Cover, videos: Boolean)
     fun onContinue(cover: Cover)
+    /** Opens Quiet's own screen to watch one ad instead of the rest of the unlock wait. */
+    fun onSkipWaitWithAd(cover: Cover)
 }
 
-data class CoverModel(val cover: Cover, val accent: Accent, val todayLine: String?)
+data class CoverModel(
+    val cover: Cover,
+    val accent: Accent,
+    val todayLine: String?,
+    /** Offer one ad as the quicker way through the unlock wait. */
+    val adSkip: Boolean = false,
+    /** An ad was just watched for this app: no wait, go straight to the unlock choices. */
+    val waitSkipped: Boolean = false,
+)
 
 data class PillModel(val text: String, val urgent: Boolean, val accent: Accent)
 

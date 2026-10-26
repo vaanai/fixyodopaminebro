@@ -111,7 +111,10 @@ data class Settings(
     val unlockVideos: Int = 5,
     /** Length of an "N minutes" unlock. Daily app limits always unlock this way. */
     val unlockMinutes: Int = 5,
-    val unlockWaitSeconds: Int = 15,
+    /** The free wait before an unlock. Long enough that one short ad is the quicker way through. */
+    val unlockWaitSeconds: Int = 60,
+    /** During the wait you can watch one short rewarded ad instead. The wait always works too. */
+    val adSkipsWait: Boolean = true,
     val unlocksPerDay: Int = 3,
 
     val pauseSeconds: Int = 10,
@@ -240,6 +243,7 @@ object Defaults {
             budgetMinutes = 30,
             unlocksEnabled = true,
             unlocksPerDay = 5,
+            unlockWaitSeconds = 30,
         )
         Preset.BALANCED -> base.copy(
             apps = mapOf(
@@ -250,6 +254,7 @@ object Defaults {
             budgetMinutes = 20,
             unlocksEnabled = true,
             unlocksPerDay = 3,
+            unlockWaitSeconds = 60,
         )
         Preset.STRICT -> base.copy(
             apps = mapOf(
@@ -262,7 +267,7 @@ object Defaults {
             budgetMinutes = 10,
             unlocksEnabled = false,
             unlocksPerDay = 1,
-            unlockWaitSeconds = 30,
+            unlockWaitSeconds = 120,
         )
     }
 }

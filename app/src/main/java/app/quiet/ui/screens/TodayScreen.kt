@@ -1,5 +1,9 @@
 package app.quiet.ui.screens
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import app.quiet.ads.SkipWaitActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -226,6 +230,14 @@ fun TodayScreen() {
             // Same pause as the block screen, so unlocking from here isn't the easy way round it.
             var pending by remember { mutableStateOf<Pair<String, UnlockKind>?>(null) }
             var waitLeft by remember { mutableIntStateOf(0) }
+            // One ad on Quiet's own screen instead of the rest of the wait. Optional; the wait carries on meanwhile.
+            val skipWithAd = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                val p = pending
+                if (result.resultCode == Activity.RESULT_OK && p != null) {
+                    QuietService.instance?.unlockFromApp(p.first, videos = p.second == UnlockKind.VIDEOS)
+                    pending = null
+                }
+            }
             LaunchedEffect(pending) {
                 val p = pending ?: return@LaunchedEffect
                 waitLeft = settings.unlockWaitSeconds
@@ -248,7 +260,14 @@ fun TodayScreen() {
                         color = c.textDim,
                     )
                     Spacer(Modifier.height(10.dp))
-                    SmallButton("Never mind") { pending = null }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallButton("Never mind") { pending = null }
+                        if (settings.adSkipsWait && waitLeft > 0) {
+                            SmallButton("Skip with 1 short ad", accent = true) {
+                                skipWithAd.launch(SkipWaitActivity.intent(context, p.first, name, returnPackage = null))
+                            }
+                        }
+                    }
                 } else {
                     Text(
                         "Uses one of your $unlocksLeft unlocks left today. Then open the app.",

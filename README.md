@@ -6,7 +6,8 @@ Quiet keeps the endless parts of Instagram, TikTok and YouTube out of your day, 
 - **A reel a friend sent you** plays normally. Swiping past it into the algorithm is what gets stopped, with a separate allowance for chats, profiles, your feed, Explore and stories. Links opened from other apps (a TikTok someone texted you) play too, even when the app opens them inside a blocked feed.
 - **Blocked means a way out**: Instagram's Reels tab drops you into Messages, and TikTok skips For You and opens on your Inbox. Come straight back and you get the block screen with unlock options.
 - **Instagram Home** can be left alone or blocked. Blocked, the top of Home and the **Stories row stay open**, and the block starts when you scroll down past them. Block Stories too and all of Home is covered.
-- **Unlocks** if you want them: you choose whether each one gives you N more videos, N minutes, or a pick each time, after a short wait, a few times a day.
+- **Unlocks** if you want them: you choose whether each one gives you N more videos, N minutes, or a pick each time, after a wait (a minute by default), a few times a day.
+- **The one ad**: while you wait for an unlock you can watch one short rewarded ad instead. It shows only on Quiet's own screen, never over another app, and only when you ask. Waiting always works too, the ad never adds unlocks, and it can be switched off. Debug builds use Google's test ads; see [docs/releasing.md](docs/releasing.md) for the real IDs.
 - **Settings lock**: picked during setup (1 to 5 minutes). Making Quiet less strict means waiting that long first; then settings stay open for 5 minutes. Tightening is always instant.
 - **Focus**: schedules (they can cross midnight), one-tap sessions, and a Quick Settings tile.
 - **Tracking**: daily time in every social app, endless-feed vs shared-video time, hourly heat strip, streaks, and daily limits for any app.
