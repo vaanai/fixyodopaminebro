@@ -22,9 +22,11 @@ import app.quiet.LocalEditor
 import app.quiet.LocalNav
 import app.quiet.QuietApp
 import app.quiet.ui.components.Chip
+import app.quiet.ui.components.Note
 import app.quiet.ui.components.PrimaryButton
 import app.quiet.ui.components.QCard
 import app.quiet.ui.components.ScreenHeader
+import app.quiet.ui.components.SectionTitle
 import app.quiet.ui.components.StepperRow
 import app.quiet.ui.components.SwitchRow
 import app.quiet.ui.theme.Q
@@ -48,7 +50,7 @@ fun FocusScreen() {
         editor.edit { st -> st.copy(focusWindows = st.focusWindows.map { if (it.id == id) f(it) else it }) }
 
     Page {
-        ScreenHeader("Focus schedule", "During these times every feed is off, whatever its own setting. Chats keep working.", onBack = { nav.back() })
+        ScreenHeader("Focus schedule", "During these times every video feed is blocked, and so is anything set to Pause or Limit. Feeds you allow and your chats keep working.", onBack = { nav.back() })
         for (w in s.focusWindows) {
             Spacer(Modifier.height(12.dp))
             QCard {
@@ -85,6 +87,17 @@ fun FocusScreen() {
                 }
                 val (start, end) = if (st.focusWindows.isEmpty()) 23 * 60 to 7 * 60 else 8 * 60 to 12 * 60
                 st.copy(focusWindows = st.focusWindows + FocusWindow(UUID.randomUUID().toString(), label, DayOfWeek.entries.toSet().let { if (st.focusWindows.isEmpty()) it else weekdays }, start, end))
+            }
+        }
+
+        SectionTitle("Unlocks")
+        QCard {
+            if (s.unlocksEnabled) {
+                SwitchRow("Unlocks during focus", s.focusAllowsUnlocks, if (s.focusAllowsUnlocks) "Focus time can be unlocked like any other block." else "Focus time can't be unlocked.") { on ->
+                    editor.edit { it.copy(focusAllowsUnlocks = on) }
+                }
+            } else {
+                Note("Unlocks are off, so focus time can't be unlocked either.")
             }
         }
     }

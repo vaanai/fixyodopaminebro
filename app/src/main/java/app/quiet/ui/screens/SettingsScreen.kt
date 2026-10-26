@@ -97,7 +97,7 @@ fun unlockSummary(s: Settings): String = when {
 private fun feedsIn(mode: Mode, rules: RulesState, s: Settings): String =
     rules.apps.values
         .filter { s.app(it.app).enabled }
-        .flatMap { app -> app.surfaces.filter { s.modeFor(app.app, it.id) == mode }.map { "${app.displayName} ${it.label}" } }
+        .flatMap { app -> feeds(app).filter { s.modeFor(app.app, it.id) == mode }.map { "${app.displayName} ${it.label}" } }
         .joinToString()
 
 @Composable
@@ -134,12 +134,12 @@ fun SettingsScreen() {
             NavRow("Apps and feeds", managed.ifEmpty { "No apps managed" }, Icons.Rounded.Apps) { nav.tab(Tab.APPS) }
             NavRow(
                 "Focus schedule",
-                "Times when every feed is off.",
+                "Times when video feeds are blocked.",
                 Icons.Rounded.Bedtime,
                 value = s.focusWindows.count { it.enabled }.let { if (it == 0) "None" else "$it on" },
             ) { nav.go(Route.Focus) }
             NavRow(
-                "Other apps",
+                "Tracked apps",
                 "Count time in any app and give it a daily limit.",
                 Icons.Rounded.Timer,
                 value = s.tracked.count { it.dailyLimitMinutes > 0 }.let { if (it > 0) "$it limited" else null },
@@ -147,7 +147,7 @@ fun SettingsScreen() {
             SwitchRow(
                 "Links from other apps play",
                 s.linksPlay,
-                "A TikTok or reel someone texts you plays, even if it opens in a blocked feed. Swiping on is blocked.",
+                "A TikTok or reel someone texts you plays, even if it opens in a blocked feed. Swiping on counts like a video sent in a chat.",
                 Icons.Rounded.Link,
             ) { on -> editor.edit { it.copy(linksPlay = on) } }
         }
@@ -173,6 +173,13 @@ fun SettingsScreen() {
             NavRow("Settings lock", SettingsLock.formatWait(s.lockSeconds).let { if (s.lockSeconds > 0) "$it wait to loosen" else it }, Icons.Rounded.Lock) {
                 nav.go(Route.Section(SettingsSection.LOCK))
             }
+            StepperRow(
+                "Check-in reminders",
+                s.nudgeEveryMinutes,
+                "A gentle note after this long in any tracked app.",
+                options = listOf(0, 5, 10, 15, 20, 30, 45, 60),
+                format = { if (it == 0) "Off" else "${it}m" },
+            ) { v -> editor.edit { it.copy(nudgeEveryMinutes = v) } }
             NavRow("Start over from a preset", "Gentle, Balanced or Strict.", Icons.Rounded.RestartAlt) { choosingPreset = true }
         }
 
@@ -322,9 +329,8 @@ private fun UnlocksPage() {
                 StepperRow("Wait before unlocking", s.unlockWaitSeconds, "A moment to change your mind.", options = listOf(0, 5, 10, 15, 20, 30, 45, 60), format = { "${it}s" }) { v ->
                     editor.edit { it.copy(unlockWaitSeconds = v) }
                 }
-                SwitchRow("Unlocks during focus", s.focusAllowsUnlocks, "Off means focus time can't be unlocked.") { on ->
-                    editor.edit { it.copy(focusAllowsUnlocks = on) }
-                }
+                Spacer(Modifier.height(6.dp))
+                Note("Whether focus time can be unlocked is set under Focus schedule.")
             }
         }
     }
@@ -452,20 +458,6 @@ private fun BlockScreenPage() {
             }
             SwitchRow("Timer pill", s.showTimerPill, "Shows time or videos left while something is unlocked or limited.") { on ->
                 editor.edit { it.copy(showTimerPill = on) }
-            }
-        }
-
-        SectionTitle("Reminders and limits")
-        QCard {
-            StepperRow(
-                "Check-in reminders",
-                s.nudgeEveryMinutes,
-                "A gentle note after this long in any tracked app.",
-                options = listOf(0, 5, 10, 15, 20, 30, 45, 60),
-                format = { if (it == 0) "Off" else "${it}m" },
-            ) { v -> editor.edit { it.copy(nudgeEveryMinutes = v) } }
-            SwitchRow("Keep chats open after limits", s.keepMessagesOpen, "Daily app limits never cover your messages.") { on ->
-                editor.edit { it.copy(keepMessagesOpen = on) }
             }
         }
     }

@@ -81,7 +81,7 @@ private fun copyFor(c: Cover): CoverCopy = when (c.reason) {
     CoverReason.FOCUS -> CoverCopy(
         Icons.Rounded.Bedtime,
         "Focus time",
-        "Feeds are off while focus is on. Chats still work.",
+        "This feed is blocked while focus is on. Chats still work.",
     )
     CoverReason.SWIPE_LIMIT -> CoverCopy(
         Icons.Rounded.Spa,

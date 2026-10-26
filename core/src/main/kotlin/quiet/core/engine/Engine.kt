@@ -317,7 +317,8 @@ class Engine {
             return base.copy(cover = cover(CoverReason.APP_LIMIT, fullScreen = true))
         }
 
-        if (kind == SurfaceKind.MESSAGES) return base
+        // Chats and profiles are never blocked: they're where the videos friends send you come from.
+        if (kind == SurfaceKind.MESSAGES || kind == SurfaceKind.PROFILE) return base
 
         if (kind == SurfaceKind.VIDEO_VIEWER) {
             val sess = session ?: return base

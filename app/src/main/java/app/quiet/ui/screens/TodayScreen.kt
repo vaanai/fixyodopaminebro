@@ -345,9 +345,9 @@ private fun FocusCard(focusUntil: Long, now: Long, active: Boolean, set: (Long) 
                 Text(if (active) "Focus is on" else "Focus", style = MaterialTheme.typography.titleSmall, color = c.text)
                 Text(
                     when {
-                        focusUntil > now -> "Every feed is off until ${clockOf(focusUntil)}"
+                        focusUntil > now -> "Video feeds are blocked until ${clockOf(focusUntil)}"
                         active -> "A focus schedule is running"
-                        else -> "Turn every feed off for a while. Chats keep working."
+                        else -> "Block every video feed for a while. Chats keep working."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = c.textDim,

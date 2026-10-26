@@ -3,7 +3,7 @@
   "app": "instagram",
   "displayName": "Instagram",
   "packages": ["com.instagram.android"],
-  "version": 4,
+  "version": 5,
   "verified": true,
   "tabBarSignal": "tabBar",
   "pagerSignal": "reelPager",
@@ -99,10 +99,10 @@
       "id": "home", "label": "Home feed", "kind": "FEED", "description": "Posts from people you follow, plus suggestions.",
       "openTop": { "signal": "storiesTray", "name": "Stories", "surface": "stories", "back": "home", "description": "The top of Home, with the Stories row, stays open. Scrolling down past it is blocked." }
     },
+    { "id": "stories", "label": "Stories", "kind": "STORIES", "description": "Stories you open from the row at the top of Home, or from a profile." },
     { "id": "explore", "label": "Search & Explore", "kind": "EXPLORE", "description": "The Explore grid and search." },
-    { "id": "stories", "label": "Stories", "kind": "STORIES", "description": "Stories from people you follow." },
     { "id": "messages", "label": "Messages", "kind": "MESSAGES", "description": "Your inbox and chats. Never blocked." },
-    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's." }
+    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's. Never blocked." }
   ],
   "rules": [
     { "surface": "reels", "all": ["reelsTabSelected"] },

@@ -111,6 +111,11 @@ object Fixtures {
         if (reachedViewer) node(id = "$IG:id/reel_viewer_root", top = 0, bottom = 2400)
     }.build().let { UiTree(it.packageName, it.nodes, it.screenWidth, it.screenHeight, truncated = true) }
 
+    fun igProfile(): UiTree = Screen(IG).apply {
+        node(id = "$IG:id/profile_header_container", top = 200, bottom = 700)
+        igTabs(this, "profile_tab")
+    }.build()
+
     fun igThread(): UiTree = Screen(IG).apply {
         node(text = "lol watch this", top = 400, bottom = 500)
         node(id = "$IG:id/row_thread_composer_edittext", hint = "Message...", cls = "android.widget.EditText", editable = true, top = 2200, bottom = 2300)

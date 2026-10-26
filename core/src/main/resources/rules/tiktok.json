@@ -3,7 +3,7 @@
   "app": "tiktok",
   "displayName": "TikTok",
   "packages": ["com.zhiliaoapp.musically", "com.ss.android.ugc.trill"],
-  "version": 3,
+  "version": 4,
   "verified": true,
   "tabBarSignal": "tabBar",
   "signatureIds": [],
@@ -97,7 +97,7 @@
     { "id": "shop", "label": "Shop", "kind": "OTHER", "description": "TikTok Shop." },
     { "id": "video_viewer", "label": "Single videos", "kind": "VIDEO_VIEWER", "description": "A video opened from a chat, a profile or search." },
     { "id": "inbox", "label": "Inbox", "kind": "MESSAGES", "description": "Your inbox and chats. Never blocked." },
-    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's." }
+    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's. Never blocked." }
   ],
   "rules": [
     { "surface": "inbox", "all": ["inboxSelected"] },

@@ -72,6 +72,15 @@ class EngineTest {
         assertNull(see(ig, Fixtures.igHome()).cover)
     }
 
+    @Test fun `profiles are never covered, even with a mode left over from before`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("profile" to Mode.BLOCK)) }
+        val d = see(ig, Fixtures.igProfile())
+        assertEquals("instagram.profile", d.surfaceKey)
+        assertNull(d.cover)
+        settings = settings.copy(focusUntil = now + 60_000)
+        assertNull(see(ig, Fixtures.igProfile(), advanceMs = 2_000).cover)
+    }
+
     @Test fun `friend's reel from a chat plays, swiping on is stopped`() {
         see(ig, Fixtures.igThread())
         val first = see(ig, Fixtures.igViewer("friend"))
