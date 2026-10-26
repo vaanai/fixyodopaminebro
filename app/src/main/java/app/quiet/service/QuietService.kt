@@ -149,7 +149,13 @@ class QuietService : AccessibilityService(), CoverActions {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val e = event ?: return
-        val pkg = e.packageName?.toString() ?: return
+        val pkg = e.packageName?.toString()
+        if (pkg == null) {
+            // Window changes (an app closing to the home screen, a window opening on top) come with no
+            // package. They're often the only sign the screen under a cover has changed.
+            if (e.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED && (lastRules != null || lastDecision.cover != null)) scheduleEval()
+            return
+        }
         if (pkg == packageName) return
         try {
             val supported = store.rules.value.forPackage(pkg) != null
@@ -234,7 +240,7 @@ class QuietService : AccessibilityService(), CoverActions {
         }
         if (settings.verboseLogging && reading.surface != lastLoggedSurface) {
             lastLoggedSurface = reading.surface
-            Log.i(TAG, "screen ${rules.app}.${reading.surface} kind=${reading.kind} signals=${reading.signals} cover=${decision.cover?.reason} nodes=${result?.tree?.nodes?.size} truncated=${reading.truncated}")
+            Log.i(TAG, "screen ${rules.app}.${reading.surface} kind=${reading.kind} signals=${reading.signals} cover=${decision.cover?.reason} held=${decision.held} nodes=${result?.tree?.nodes?.size} truncated=${reading.truncated}")
         }
         if (dumpRequested && result != null) {
             dumpRequested = false
@@ -265,6 +271,8 @@ class QuietService : AccessibilityService(), CoverActions {
             overlays.showPill(d.pill?.let { PillModel(it.text, it.urgent, s.accent) })
         }
         d.command?.let { execute(it, rules, result) }
+        // A held decision is a guess about a screen that couldn't be read; look again shortly.
+        if (d.held) main.postDelayed({ scheduleEval() }, HELD_RECHECK_MS)
         if (d.events.isNotEmpty()) {
             store.record(d.events) { id -> store.rules.value.apps[id]?.displayName ?: id }
             if (s.haptics && d.events.any { it.type == EventType.COVER_SHOWN }) buzz()
@@ -682,6 +690,7 @@ class QuietService : AccessibilityService(), CoverActions {
         private const val EVAL_THROTTLE_MS = 250L
         private const val BOUNCE_MS = 2_000L
         private const val EVAL_MIN_DELAY_MS = 40L
+        private const val HELD_RECHECK_MS = 120L
 
         @Volatile
         var instance: QuietService? = null

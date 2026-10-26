@@ -19,12 +19,17 @@ data class Reading(
     val truncated: Boolean,
     /** Y coordinate where the surface's keep area (like the Stories row) ends, or null when it isn't on screen. */
     val keepBottom: Int? = null,
+    /**
+     * Nothing on screen could be told apart: no window, an empty tree, or only unnamed containers (a
+     * screen mid-transition). As opposed to a screen with content that no rule matched.
+     */
+    val blank: Boolean = false,
 ) {
     val isUnknown: Boolean get() = surface == null
 
     companion object {
         fun unknown(app: String, truncated: Boolean = false) =
-            Reading(app, null, null, emptySet(), "", null, truncated)
+            Reading(app, null, null, emptySet(), "", null, truncated, blank = true)
     }
 }
 
@@ -58,6 +63,7 @@ object Detector {
             tabBarTop = tabBarTop,
             truncated = tree.truncated,
             keepBottom = keep?.let { keepBottom(rules, tree, it.signal, tabBarTop) },
+            blank = tree.nodes.none { n -> tree.isOnScreen(n) && (n.id != null || n.labels().isNotEmpty()) },
         )
     }
 

@@ -110,6 +110,12 @@ data class Decision(
     val isFeed: Boolean = false,
     val isViewer: Boolean = false,
     val chargesBudget: Boolean = false,
+    /**
+     * The screen couldn't be read properly, so the last decision is being held for a moment. Read
+     * again soon rather than waiting for the app to send another event: the cover should go the
+     * moment the new screen can be read.
+     */
+    val held: Boolean = false,
 ) {
     companion object {
         val NONE = Decision()
@@ -183,16 +189,23 @@ class Engine {
         val raw = guessAtLaunch(input.rules, input.reading, now) ?: stillOnFeed(input.reading) ?: input.reading
         guessing = raw !== input.reading
 
-        // A partial read that already shows a chat is trusted: chats are never covered.
-        if (raw.isUnknown || (raw.truncated && raw.kind != SurfaceKind.MESSAGES)) {
+        // A partial read that already shows a chat or a story is trusted. Chats are never covered, and
+        // the story viewer is only in the tree when a story is open; it sits above the screen it
+        // opened from, so a read cut short is most likely to miss it, never to invent it.
+        if (raw.isUnknown || (raw.truncated && raw.kind !in TRUSTED_WHEN_PARTIAL)) {
             // An unreadable screen after a skip means the skip went somewhere: a later landing on
             // the same feed is a return, not a retry.
             landing?.let { if (raw.isUnknown && it.skipAttempts > 0 && now - it.lastSkipAt > SKIP_SETTLE_MS) landing = null }
             // Screens are briefly unreadable mid-transition, and a partial read can match the wrong
             // surface. Hold the last decision for a moment so the cover doesn't flicker, then fail
             // open (unknown) or go with the partial read (truncated).
-            if (lastKnown != null && now - lastKnownAt < UNKNOWN_HOLD_MS) {
-                return lastDecision.copy(command = null, events = emptyList())
+            // A full read that no rule matches, after a screen with the app's tab bar, while the tab bar
+            // is gone too, isn't a transition: something full-screen opened on top (a story's opening
+            // frames, before its viewer is labelled). Let the cover go now instead of after the hold.
+            val openedOnTop = raw.isUnknown && !raw.truncated && !raw.blank &&
+                raw.tabBarTop == null && lastKnown?.tabBarTop != null
+            if (lastKnown != null && now - lastKnownAt < UNKNOWN_HOLD_MS && !openedOnTop) {
+                return lastDecision.copy(command = null, events = emptyList(), held = true)
             }
             if (raw.isUnknown) {
                 lastKnown = null
@@ -566,6 +579,9 @@ class Engine {
         const val SKIP_RETRY_MS = 1_200L
         const val VIDEO_PASS_MAX_MS = 30 * 60_000L
         const val RETURN_SHOWS_COVER_MS = 20_000L
+
+        /** Kinds a partial read can be taken at its word for. */
+        private val TRUSTED_WHEN_PARTIAL = setOf(SurfaceKind.MESSAGES, SurfaceKind.STORIES)
 
         fun isFocusActive(s: Settings, now: Long, zone: ZoneId): Boolean {
             if (s.focusUntil > now) return true

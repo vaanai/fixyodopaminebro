@@ -205,6 +205,48 @@ class EngineTest {
         assertNull(cover.keptName)
     }
 
+    @Test fun `opening a story from a blocked home drops the cover at once`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNotNull(see(ig, Fixtures.igHomeWithStories()).cover)
+        assertNull(see(ig, Fixtures.igStory(), advanceMs = 100).cover)
+        // And back to Home: covered again, Stories row kept.
+        assertNotNull(see(ig, Fixtures.igHomeWithStories(), advanceMs = 100).cover?.topPx)
+    }
+
+    @Test fun `a partial read that reaches the story viewer drops the home cover`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNotNull(see(ig, Fixtures.igHomeWithStories()).cover)
+        assertNull(see(ig, Fixtures.igHomeUnderStory(reachedViewer = true), advanceMs = 100).cover)
+    }
+
+    @Test fun `a partial read that misses the story viewer holds the cover and asks for another look`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNotNull(see(ig, Fixtures.igHomeWithStories()).cover)
+        val held = see(ig, Fixtures.igHomeUnderStory(reachedViewer = false), advanceMs = 100)
+        assertNotNull(held.cover)
+        assertTrue(held.held)
+        // The next read gets through to the viewer: the cover goes straight away.
+        assertNull(see(ig, Fixtures.igStory(), advanceMs = 120).cover)
+    }
+
+    @Test fun `a story's unlabelled first frames don't hold the home cover`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNotNull(see(ig, Fixtures.igHomeWithStories()).cover)
+        assertNull(see(ig, Fixtures.igStoryOpening(), advanceMs = 100).cover)
+    }
+
+    @Test fun `a blank read mid-transition still holds a blocked feed's cover`() {
+        see(ig, Fixtures.igReelsTab())
+        val d = see(ig, Screen(Fixtures.IG).apply { node(cls = "FrameLayout", top = 0, bottom = 2400) }.build(), advanceMs = 300)
+        assertNotNull(d.cover)
+        assertTrue(d.held)
+    }
+
+    @Test fun `a full read is never marked held`() {
+        assertFalse(see(ig, Fixtures.igReelsTab()).held)
+        assertFalse(see(ig, Fixtures.igHome()).held)
+    }
+
     @Test fun `allowed home with a stories row is not covered`() {
         assertNull(see(ig, Fixtures.igHomeWithStories()).cover)
     }
