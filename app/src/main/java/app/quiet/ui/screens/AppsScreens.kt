@@ -84,7 +84,7 @@ fun feeds(rules: AppRules) = rules.surfaces.filter { it.kind !in NOT_FEEDS }
 /** One-line summary of an app's setup: "Reels tab blocked, Home feed blocked past Stories". */
 fun summary(rules: AppRules, s: Settings): String {
     val a = s.app(rules.app)
-    if (!a.enabled) return "Not managed. Time is still counted."
+    if (!a.enabled) return if (a.dailyLimitMinutes > 0) "Not managed. Daily limit ${a.dailyLimitMinutes}m." else "Not managed. Time is still counted."
     val blocked = feeds(rules)
         .filter { s.modeFor(rules.app, it.id) != Mode.ALLOW }
         .joinToString { surface ->
@@ -186,7 +186,7 @@ fun AppDetailScreen(appId: String) {
     Page {
         ScreenHeader(rules.displayName, onBack = { nav.back() })
         QCard {
-            SwitchRow("Manage ${rules.displayName}", a.enabled, "Off means Quiet only counts time here.") { on -> update { it.copy(enabled = on) } }
+            SwitchRow("Manage ${rules.displayName}", a.enabled, "Off means Quiet only counts time here, and keeps to the daily limit if you set one.") { on -> update { it.copy(enabled = on) } }
         }
 
         SectionTitle("Feeds")

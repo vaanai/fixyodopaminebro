@@ -75,6 +75,8 @@ data class Cover(
     val origin: Origin? = null,
     val allowedSwipes: Int = 0,
     val unlockKind: UnlockKind = UnlockKind.MINUTES,
+    /** The cover is on a video feed or a single video, where "watch N more" can count swipes. */
+    val videoSurface: Boolean = true,
     /** You scrolled past this surface's open top ("Stories"); null when the surface has none open. */
     val pastTop: String? = null,
     /** Nav target that takes you back up to the open top. */
@@ -83,7 +85,7 @@ data class Cover(
     val fromLink: Boolean = false,
 ) {
     /** The unlocks the block screen offers. */
-    val unlockOffers: List<UnlockKind> get() = unlockKind.offers(appLimit = reason == CoverReason.APP_LIMIT)
+    val unlockOffers: List<UnlockKind> get() = unlockKind.offers(appLimit = reason == CoverReason.APP_LIMIT || !videoSurface)
 
     /** Two covers with the same key are the same screen; the overlay is kept rather than redrawn. */
     val key: String get() = "$reason/$app/$surface"
@@ -261,11 +263,15 @@ class Engine {
         val appId = rules.app
         val appSet = s.app(appId)
         val now = input.now
-        if (!s.protectionOn || !appSet.enabled) return base
+        if (!s.protectionOn) return base
 
         val focus = isFocusActive(s, now, input.zone)
-        val videoPass = videoPasses[appId]?.takeIf { it.until > now }
-        val unlockedUntil = passes[appId]?.takeIf { it > now } ?: videoPass?.until
+        // An unlock that was running when focus started doesn't carry on into it unless unlocks are
+        // allowed during focus. "Watch N more" counts swipes, so it only opens videos.
+        val passesCount = !focus || s.focusAllowsUnlocks
+        val videoKind = kind == SurfaceKind.VIDEO_FEED || kind == SurfaceKind.VIDEO_VIEWER
+        val videoPass = videoPasses[appId]?.takeIf { it.until > now && passesCount && videoKind }
+        val unlockedUntil = passes[appId]?.takeIf { it > now && passesCount } ?: videoPass?.until
         val unlocksLeft = (s.unlocksPerDay - input.today.unlocks).coerceAtLeast(0)
         val label = rules.surface(surface)?.label ?: surface
         // A feed's open top stays open only while what it leads to (Stories) isn't blocked too.
@@ -296,6 +302,7 @@ class Engine {
                 origin = session?.origin,
                 allowedSwipes = session?.let { s.viewerSwipesFor(appId, it.origin) } ?: 0,
                 unlockKind = s.unlockKind,
+                videoSurface = videoKind,
                 pastTop = openTop?.name?.takeIf { !fullScreen },
                 backToTop = openTop?.back?.takeIf { !fullScreen },
             )
@@ -308,7 +315,8 @@ class Engine {
             else -> Pill("$prefix · ${formatClock(until - now)}", until - now < 60_000)
         }
 
-        // A whole-app daily limit trumps everything except chats (when chats are kept open).
+        // A whole-app daily limit trumps everything except chats (when chats are kept open), and holds
+        // even when the app's feeds aren't managed.
         val limit = appSet.dailyLimitMinutes
         if (limit > 0 && unlockedUntil == null &&
             input.today.appSecondsFor(rules.packages) >= limit * 60 &&
@@ -316,6 +324,8 @@ class Engine {
         ) {
             return base.copy(cover = cover(CoverReason.APP_LIMIT, fullScreen = true))
         }
+        // An app Quiet doesn't manage only keeps to its whole-app daily limit, if one is set.
+        if (!appSet.enabled) return base
 
         // Chats and profiles are never blocked: they're where the videos friends send you come from.
         if (kind == SurfaceKind.MESSAGES || kind == SurfaceKind.PROFILE) return base

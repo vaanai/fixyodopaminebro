@@ -139,11 +139,18 @@ class Store(private val context: Context) {
         scope.launch { writeLog(_log.value) }
     }
 
-    fun clearStats() {
-        _history.value = emptyMap()
+    /**
+     * Clears history and the log. Today's time, allowance and unlocks stay, because limits run on
+     * them: a reset mustn't be a way round a limit without the settings lock's wait.
+     */
+    fun clearStats(now: Long = System.currentTimeMillis()) {
+        val today = today(now)
+        _history.value = mapOf(
+            today.date to DayStats(today.date, appSeconds = today.appSeconds, budgetSeconds = today.budgetSeconds, unlocks = today.unlocks),
+        )
         _log.value = emptyList()
         scope.launch {
-            statsFile.delete()
+            writeAtomic(statsFile, StatsCodec.encode(_history.value))
             logFile.delete()
         }
     }

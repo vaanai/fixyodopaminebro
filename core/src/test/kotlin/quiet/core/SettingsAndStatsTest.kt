@@ -60,6 +60,11 @@ class SettingsAndStatsTest {
         assertEquals(UnlockKind.VIDEOS, SettingsCodec.decode("{}").unlockKind)
     }
 
+    @Test fun `settings saved before the ad existed keep it off`() {
+        assertEquals(false, SettingsCodec.decode("""{"onboarded": true, "unlockWaitSeconds": 15}""").adSkipsWait)
+        assertEquals(true, Settings().adSkipsWait)
+    }
+
     @Test fun `people set up before the disclosure screen count as having agreed`() {
         assertEquals(true, SettingsCodec.decode("""{"onboarded": true}""").disclosureAccepted)
         assertEquals(false, SettingsCodec.decode("{}").disclosureAccepted)

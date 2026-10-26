@@ -531,7 +531,7 @@ private fun PrivacyPage() {
             onDismissRequest = { confirmReset = false },
             containerColor = c.surface,
             title = { Text("Reset all stats?", color = c.text) },
-            text = { Text("Times, counts, streaks and the activity log are deleted. Settings stay.", color = c.textDim) },
+            text = { Text("Times, counts, streaks and the activity log are deleted. Settings stay, and today's limits keep counting.", color = c.textDim) },
             confirmButton = {
                 TextButton(onClick = {
                     store.clearStats()

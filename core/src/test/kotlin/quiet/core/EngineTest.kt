@@ -511,6 +511,49 @@ class EngineTest {
         assertNull(see(ig, Fixtures.igReelsTab()).cover)
     }
 
+    @Test fun `an unmanaged app still keeps to its daily limit`() {
+        settings = settings.withApp("instagram") { it.copy(enabled = false, dailyLimitMinutes = 30) }
+        today = today.copy(appSeconds = mapOf(Fixtures.IG to 29 * 60))
+        assertNull(see(ig, Fixtures.igReelsTab()).cover)
+        today = today.copy(appSeconds = mapOf(Fixtures.IG to 30 * 60))
+        assertEquals(CoverReason.APP_LIMIT, see(ig, Fixtures.igReelsTab()).cover?.reason)
+        assertNull(see(ig, Fixtures.igThread()).cover)
+    }
+
+    @Test fun `watch N more is only offered on videos`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertEquals(listOf(UnlockKind.MINUTES), see(ig, Fixtures.igHome()).cover!!.unlockOffers)
+        settings = settings.copy(unlockKind = UnlockKind.CHOOSE)
+        assertEquals(listOf(UnlockKind.MINUTES), see(ig, Fixtures.igHome()).cover!!.unlockOffers)
+    }
+
+    @Test fun `a watch N more pass doesn't open screens that aren't videos`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK), autoSkipTarget = null) }
+        see(ig, Fixtures.igReelsTab("anna"))
+        engine.unlockVideos("instagram", 5, now)
+        assertNull(see(ig, Fixtures.igReelsTab("anna")).cover)
+        assertEquals(CoverReason.BLOCKED, see(ig, Fixtures.igHome()).cover?.reason)
+    }
+
+    @Test fun `a watch N more pass doesn't lift the daily limit off the rest of the app`() {
+        settings = settings.withApp("instagram") { it.copy(dailyLimitMinutes = 30, autoSkipTarget = null) }
+        see(ig, Fixtures.igReelsTab("anna"))
+        engine.unlockVideos("instagram", 5, now)
+        today = today.copy(appSeconds = mapOf(Fixtures.IG to 30 * 60))
+        assertEquals(CoverReason.APP_LIMIT, see(ig, Fixtures.igHome()).cover?.reason)
+    }
+
+    @Test fun `an unlock running when focus starts stops at focus`() {
+        settings = settings.withApp("instagram") { it.copy(autoSkipTarget = null) }
+        see(ig, Fixtures.igReelsTab())
+        engine.unlock("instagram", 15, now)
+        assertNull(see(ig, Fixtures.igReelsTab()).cover)
+        settings = settings.copy(focusUntil = now + 60 * 60_000)
+        assertEquals(CoverReason.FOCUS, see(ig, Fixtures.igReelsTab()).cover?.reason)
+        settings = settings.copy(focusAllowsUnlocks = true)
+        assertNull(see(ig, Fixtures.igReelsTab()).cover)
+    }
+
     @Test fun `full screen style ignores the tab bar`() {
         settings = settings.copy(coverStyle = quiet.core.settings.CoverStyle.FULL_SCREEN)
         assertNull(see(ig, Fixtures.igReelsTab()).cover?.bottomPx)

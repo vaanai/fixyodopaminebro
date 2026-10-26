@@ -75,7 +75,8 @@ object SettingsCodec {
             unlockMinutes = o.optInt("unlockMinutes", d.unlockMinutes),
             unlockVideos = if (legacyVideos <= 0) d.unlockVideos else legacyVideos,
             unlockWaitSeconds = o.optInt("unlockWaitSeconds", d.unlockWaitSeconds),
-            adSkipsWait = o.optBoolean("adSkipsWait", d.adSkipsWait),
+            // Settings saved before the ad existed keep it off: turning it on counts as loosening.
+            adSkipsWait = o.optBoolean("adSkipsWait", false),
             unlocksPerDay = o.optInt("unlocksPerDay", d.unlocksPerDay),
             pauseSeconds = o.optInt("pauseSeconds", d.pauseSeconds),
             pauseMinutes = o.optInt("pauseMinutes", d.pauseMinutes),

@@ -48,7 +48,10 @@ enum class UnlockKind {
     /** Offer both and pick each time. */
     CHOOSE;
 
-    /** The unlocks to offer. Whole-app limits can only unlock by time: videos can't be counted there. */
+    /**
+     * The unlocks to offer. Whole-app limits and screens that aren't videos (Explore, LIVE, a feed of
+     * posts) can only unlock by time: videos can't be counted there.
+     */
     fun offers(appLimit: Boolean = false): List<UnlockKind> = when {
         appLimit -> listOf(MINUTES)
         this == CHOOSE -> listOf(VIDEOS, MINUTES)

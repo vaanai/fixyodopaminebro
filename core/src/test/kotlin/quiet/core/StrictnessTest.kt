@@ -28,6 +28,22 @@ class StrictnessTest {
         assertFalse(Strictness.isLoosening(base, base.copy(adSkipsWait = false)))
     }
 
+    @Test fun `longer or extra focus time is not loosening, shorter is`() {
+        val w = base.focusWindows.single()
+        assertFalse(Strictness.isLoosening(base, base.copy(focusWindows = listOf(w.copy(startMinute = 480)))))
+        assertFalse(Strictness.isLoosening(base, base.copy(focusWindows = listOf(w.copy(days = setOf(DayOfWeek.MONDAY, DayOfWeek.SATURDAY))))))
+        assertFalse(Strictness.isLoosening(base, base.copy(focusWindows = listOf(w.copy(label = "Deep work")))))
+        assertFalse(Strictness.isLoosening(base, base.copy(focusWindows = listOf(w, FocusWindow("b", "Night", setOf(DayOfWeek.FRIDAY), 1380, 420)))))
+        assertTrue(Strictness.isLoosening(base, base.copy(focusWindows = listOf(w.copy(endMinute = 960)))))
+        assertTrue(Strictness.isLoosening(base, base.copy(focusWindows = listOf(w.copy(days = setOf(DayOfWeek.TUESDAY))))))
+        assertTrue(Strictness.isLoosening(base, base.copy(focusWindows = listOf(w.copy(enabled = false)))))
+    }
+
+    @Test fun `letting video play under the cover is loosening`() {
+        assertTrue(Strictness.isLoosening(base, base.copy(pauseVideo = false)))
+        assertFalse(Strictness.isLoosening(base.copy(pauseVideo = false), base))
+    }
+
     @Test fun `turning on the ad that skips the wait is loosening`() {
         val noAd = base.copy(adSkipsWait = false)
         assertTrue(Strictness.isLoosening(noAd, noAd.copy(adSkipsWait = true)))
