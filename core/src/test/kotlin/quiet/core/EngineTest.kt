@@ -302,18 +302,27 @@ class EngineTest {
         assertNull(first.cover)
         assertNull(first.command)
         assertTrue(first.isViewer)
+        see(tt, Fixtures.ttForYou(author = "@friend"), advanceMs = Engine.LINK_SETTLE_MS)
         swipe()
         val next = see(tt, Fixtures.ttForYou(author = "@stranger"), advanceMs = 900)
         val cover = assertNotNull(next.cover)
         assertEquals(CoverReason.SWIPE_LIMIT, cover.reason)
         assertTrue(cover.offerBack)
+        assertTrue(cover.fromLink)
+    }
+
+    @Test fun `the feed shifting while a link loads isn't a swipe`() {
+        fromApp = true
+        see(tt, Fixtures.ttForYou(author = "@friend"))
+        swipe()
+        assertNull(see(tt, Fixtures.ttForYou(author = "@friend loaded"), advanceMs = 2500).cover)
     }
 
     @Test fun `partial reads don't restart the swipe count on a link`() {
         fromApp = true
         see(tt, Fixtures.ttForYou(author = "@friend"))
         // A partial read mid-video looks like a single video, but it's still the feed.
-        assertNull(see(tt, Fixtures.ttStartingUp(), advanceMs = 2000).cover)
+        assertNull(see(tt, Fixtures.ttStartingUp(), advanceMs = Engine.LINK_SETTLE_MS).cover)
         swipe()
         assertEquals(CoverReason.SWIPE_LIMIT, see(tt, Fixtures.ttForYou(author = "@stranger"), advanceMs = 900).cover?.reason)
     }

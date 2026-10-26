@@ -79,6 +79,8 @@ data class Cover(
     val topPx: Int? = null,
     /** What stays visible above the cover ("Stories"), when [topPx] is set. */
     val keptName: String? = null,
+    /** Swiped on from a video a link opened: going back means back to the app the link came from. */
+    val fromLink: Boolean = false,
 ) {
     /** The unlocks the block screen offers. */
     val unlockOffers: List<UnlockKind> get() = unlockKind.offers(appLimit = reason == CoverReason.APP_LIMIT)
@@ -209,7 +211,7 @@ class Engine {
         val swipesBefore = session?.takeIf { it.surface == surface }?.swipes
         trackVideo(raw, surface, kind, input.scroll, now, events)
         val swiped = swipesBefore != null && (session?.swipes ?: 0) > swipesBefore
-        if (swiped && linkVisit) linkSwipes++
+        if (swiped && linkVisit && now - enteredAt >= LINK_SETTLE_MS) linkSwipes++
         var passEnded = false
         if (swiped) videoPasses[raw.app]?.let { p ->
             if (p.remaining <= 0) {
@@ -314,7 +316,7 @@ class Engine {
         if (linkVisit && kind == SurfaceKind.VIDEO_FEED) {
             val allowed = s.viewerSwipesFor(appId, Origin.MESSAGES)
             if (allowed != UNLIMITED && linkSwipes > allowed && unlockedUntil == null) {
-                return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true))
+                return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true).copy(fromLink = true))
             }
             return base.copy(isFeed = false, isViewer = true, pill = unlockedUntil?.let { passPill(it, "Unlocked") })
         }
@@ -549,6 +551,11 @@ class Engine {
         const val UNKNOWN_HOLD_MS = 1_500L
         /** How long after an app comes to the front a partial read can be taken for its launch surface. */
         const val LAUNCH_GUESS_MS = 10_000L
+        /**
+         * A link that cold-starts an app keeps loading for a few seconds, and the feed shifts under the
+         * video while it does. Swipes away from the linked video only count after this.
+         */
+        const val LINK_SETTLE_MS = 6_000L
         const val ORIGIN_MEMORY_MS = 120_000L
         const val SWIPE_SCROLL_WINDOW_MS = 1_500L
         const val MIN_SWIPE_GAP_MS = 800L

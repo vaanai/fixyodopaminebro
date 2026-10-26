@@ -68,6 +68,7 @@ class QuietService : AccessibilityService(), CoverActions {
     private var foregroundSince = 0L
     private var enteredFromApp = false
     private var lastApp: String? = null
+    private var cameFrom: String? = null
     private var nudgesSent = 0
     private var lastTick = 0L
     private var carryMs = 0L
@@ -226,6 +227,9 @@ class QuietService : AccessibilityService(), CoverActions {
         )
         applyDecision(decision, rules, result)
 
+        if (settings.verboseLogging && decision.events.any { it.type == EventType.VIDEO }) {
+            Log.i(TAG, "video ${rules.app}.${reading.surface} truncated=${reading.truncated} scroll=${scroll?.index} sig=${reading.signature.take(40)}")
+        }
         if (settings.verboseLogging && reading.surface != lastLoggedSurface) {
             lastLoggedSurface = reading.surface
             Log.i(TAG, "screen ${rules.app}.${reading.surface} kind=${reading.kind} signals=${reading.signals} cover=${decision.cover?.reason} nodes=${result?.tree?.nodes?.size} truncated=${reading.truncated}")
@@ -350,6 +354,7 @@ class QuietService : AccessibilityService(), CoverActions {
         // with no readable app in front (a cold start's splash) don't count as leaving.
         if (fg != lastApp) {
             enteredFromApp = lastApp?.let { !isHome(it) } ?: false
+            cameFrom = lastApp.takeIf { enteredFromApp }
             lastApp = fg
         }
         val s = store.settings.value
@@ -412,7 +417,10 @@ class QuietService : AccessibilityService(), CoverActions {
     }
 
     override fun onBack(cover: Cover) {
-        performGlobalAction(GLOBAL_ACTION_BACK)
+        // Inside an app a link opened, Back often has nowhere to go: return to the app the link came from.
+        val launch = cameFrom?.takeIf { cover.fromLink }?.let { packageManager.getLaunchIntentForPackage(it) }
+        val returned = launch != null && runCatching { startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+        if (!returned) performGlobalAction(GLOBAL_ACTION_BACK)
         main.postDelayed({ scheduleEval() }, 350)
     }
 
