@@ -537,7 +537,7 @@ private fun AdvancedPage() {
         ScreenHeader("Advanced", "For checking how Quiet reads apps, and fixing it when an app update moves things around.", onBack = { nav.back() })
         Spacer(Modifier.height(8.dp))
         QCard {
-            NavRow("Inspector", "See what Quiet sees right now, and save screen dumps.", Icons.Rounded.BugReport) { nav.go(Route.Inspector) }
+            NavRow("Inspector", if (BuildConfig.DEBUG) "See what Quiet sees right now, and save screen dumps." else "See what Quiet sees right now.", Icons.Rounded.BugReport) { nav.go(Route.Inspector) }
             NavRow("Reload detection rules", rules.sources.entries.joinToString { "${it.key}: ${it.value}" }, Icons.Rounded.Refresh) {
                 store.reloadRules()
                 QuietService.instance?.refresh()

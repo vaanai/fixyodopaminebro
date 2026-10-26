@@ -169,7 +169,11 @@ class Store(private val context: Context) {
      */
     fun rulesOverrideDir(): File? = if (BuildConfig.DEBUG) context.getExternalFilesDir("rules") else null
 
-    fun dumpsDir(): File? = context.getExternalFilesDir("dumps")
+    /**
+     * Where Inspector screen dumps go. Dumps include text from other apps' screens, so they are debug
+     * builds only: a Play build never writes screen content to storage, as its accessibility disclosure says.
+     */
+    fun dumpsDir(): File? = if (BuildConfig.DEBUG) context.getExternalFilesDir("dumps") else null
 
     fun reloadRules() {
         val apps = mutableMapOf<String, AppRules>()
