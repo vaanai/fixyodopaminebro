@@ -3,11 +3,12 @@
   "app": "tiktok",
   "displayName": "TikTok",
   "packages": ["com.zhiliaoapp.musically", "com.ss.android.ugc.trill"],
-  "version": 2,
+  "version": 3,
   "verified": true,
   "tabBarSignal": "tabBar",
   "signatureIds": [],
   "autoSkipTarget": "inbox",
+  "launch": { "surface": "for_you", "signal": "videoActions", "note": "TikTok opens on For You; at cold start the first reads stop inside the video pager before the tabs" },
   "signals": {
     "tabBar": [
       { "text": "Inbox", "minTopFraction": 0.8 },

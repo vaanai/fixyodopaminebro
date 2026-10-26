@@ -3,6 +3,6 @@
     <string name="app_name">Quiet</string>
     <string name="service_label">Quiet</string>
     <string name="service_summary">Keeps Reels, For You and Shorts out of the apps you still need.</string>
-    <string name="service_description">Quiet reads the layout of Instagram, TikTok and YouTube to spot endless video feeds and cover them. It also counts how long you spend in social apps. Nothing leaves your phone and no text from other apps is stored.</string>
+    <string name="service_description">Quiet reads the layout of Instagram, TikTok and YouTube to tell endless video feeds apart from chats, covers the feeds you blocked, and can tap a tab like Messages to skip them. It also counts how long you spend in social apps. Everything happens on your phone: nothing is collected, stored or shared, and no text from other apps is saved.</string>
     <string name="tile_label">Focus</string>
 </resources>

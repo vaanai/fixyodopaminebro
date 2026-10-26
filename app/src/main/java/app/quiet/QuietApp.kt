@@ -18,5 +18,8 @@ class QuietApp : Application() {
             private set
 
         val store: Store get() = instance.store
+
+        /** Until when (elapsedRealtime) switching the service on brings Quiet back to the front. */
+        @Volatile var returnAfterTurnOnUntil = 0L
     }
 }

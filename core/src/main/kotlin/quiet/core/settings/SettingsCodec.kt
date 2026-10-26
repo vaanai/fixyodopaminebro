@@ -7,11 +7,12 @@ import java.time.DayOfWeek
 /** Settings to and from JSON. Unknown or missing fields fall back to defaults so old files keep loading. */
 object SettingsCodec {
     fun encode(s: Settings): String = JSONObject().apply {
-        put("version", 1)
+        put("version", 2)
         put("protectionOn", s.protectionOn)
         put("apps", JSONObject().apply { s.apps.forEach { (k, v) -> put(k, encodeApp(v)) } })
         put("budgetMinutes", s.budgetMinutes)
         put("unlocksEnabled", s.unlocksEnabled)
+        put("unlockKind", s.unlockKind.name)
         put("unlockMinutes", s.unlockMinutes)
         put("unlockVideos", s.unlockVideos)
         put("unlockWaitSeconds", s.unlockWaitSeconds)
@@ -27,8 +28,10 @@ object SettingsCodec {
         put("nudgeEveryMinutes", s.nudgeEveryMinutes)
         put("coverStyle", s.coverStyle.name)
         put("keepMessagesOpen", s.keepMessagesOpen)
-        put("strictMode", s.strictMode)
-        put("strictDelaySeconds", s.strictDelaySeconds)
+        put("linksPlay", s.linksPlay)
+        put("lockSeconds", s.lockSeconds)
+        put("lockOpensAt", s.lockOpensAt)
+        put("lockPromptSeen", s.lockPromptSeen)
         put("tracked", JSONArray().apply {
             s.tracked.forEach {
                 put(JSONObject().put("package", it.packageName).put("label", it.label).put("limit", it.dailyLimitMinutes))
@@ -36,6 +39,7 @@ object SettingsCodec {
         })
         put("accent", s.accent.name)
         put("verboseLogging", s.verboseLogging)
+        put("disclosureAccepted", s.disclosureAccepted)
         put("onboarded", s.onboarded)
     }.toString(2)
 
@@ -44,13 +48,31 @@ object SettingsCodec {
         val d = Settings()
         val apps = mutableMapOf<String, AppSettings>()
         o.optJSONObject("apps")?.let { a -> for (k in a.keys()) apps[k] = decodeApp(k, a.getJSONObject(k)) }
+        // Version 1 had strict mode (no unlocks, and a short wait before loosening) instead of the
+        // settings lock, and "watch N more" set to 0 meant minutes only.
+        val legacyStrict = !o.has("lockSeconds") && o.optBoolean("strictMode", false)
+        val legacyVideos = o.optInt("unlockVideos", d.unlockVideos)
+        val unlockKind = if (o.has("unlockKind")) {
+            enumOr(o.optString("unlockKind"), d.unlockKind)
+        } else if (o.has("unlockVideos")) {
+            if (legacyVideos <= 0) UnlockKind.MINUTES else UnlockKind.CHOOSE
+        } else {
+            d.unlockKind
+        }
+        val lockSeconds = if (legacyStrict) {
+            // Round the old wait up to whole minutes, at least one.
+            ((o.optInt("strictDelaySeconds", 60) + 59) / 60 * 60).coerceAtLeast(60)
+        } else {
+            o.optInt("lockSeconds", d.lockSeconds)
+        }
         return Settings(
             protectionOn = o.optBoolean("protectionOn", d.protectionOn),
             apps = apps,
             budgetMinutes = o.optInt("budgetMinutes", d.budgetMinutes),
-            unlocksEnabled = o.optBoolean("unlocksEnabled", d.unlocksEnabled),
+            unlocksEnabled = o.optBoolean("unlocksEnabled", d.unlocksEnabled) && !legacyStrict,
+            unlockKind = unlockKind,
             unlockMinutes = o.optInt("unlockMinutes", d.unlockMinutes),
-            unlockVideos = o.optInt("unlockVideos", d.unlockVideos),
+            unlockVideos = if (legacyVideos <= 0) d.unlockVideos else legacyVideos,
             unlockWaitSeconds = o.optInt("unlockWaitSeconds", d.unlockWaitSeconds),
             unlocksPerDay = o.optInt("unlocksPerDay", d.unlocksPerDay),
             pauseSeconds = o.optInt("pauseSeconds", d.pauseSeconds),
@@ -66,8 +88,10 @@ object SettingsCodec {
             nudgeEveryMinutes = o.optInt("nudgeEveryMinutes", d.nudgeEveryMinutes),
             coverStyle = enumOr(o.optString("coverStyle"), d.coverStyle),
             keepMessagesOpen = o.optBoolean("keepMessagesOpen", d.keepMessagesOpen),
-            strictMode = o.optBoolean("strictMode", d.strictMode),
-            strictDelaySeconds = o.optInt("strictDelaySeconds", d.strictDelaySeconds),
+            linksPlay = o.optBoolean("linksPlay", d.linksPlay),
+            lockSeconds = lockSeconds,
+            lockOpensAt = o.optLong("lockOpensAt", d.lockOpensAt),
+            lockPromptSeen = o.optBoolean("lockPromptSeen", d.lockPromptSeen),
             tracked = o.optJSONArray("tracked")?.let { arr ->
                 (0 until arr.length()).map { i ->
                     val t = arr.getJSONObject(i)
@@ -76,6 +100,8 @@ object SettingsCodec {
             } ?: d.tracked,
             accent = enumOr(o.optString("accent"), d.accent),
             verboseLogging = o.optBoolean("verboseLogging", d.verboseLogging),
+            // Anyone set up before the disclosure screen existed already turned the service on themselves.
+            disclosureAccepted = o.optBoolean("disclosureAccepted", o.optBoolean("onboarded", false)),
             onboarded = o.optBoolean("onboarded", d.onboarded),
         )
     }
@@ -89,6 +115,7 @@ object SettingsCodec {
         put("viewerSwipes", JSONObject().apply { a.viewerSwipes.forEach { (k, v) -> put(k.name, v) } })
         put("dailyLimitMinutes", a.dailyLimitMinutes)
         put("autoSkipTarget", a.autoSkipTarget ?: "")
+        put("keepVisible", JSONArray().apply { a.keepVisible.sorted().forEach { put(it) } })
     }
 
     private fun decodeApp(id: String, o: JSONObject): AppSettings {
@@ -103,6 +130,8 @@ object SettingsCodec {
             viewerSwipes = d.viewerSwipes + swipes,
             dailyLimitMinutes = o.optInt("dailyLimitMinutes", d.dailyLimitMinutes),
             autoSkipTarget = if (o.has("autoSkipTarget")) o.optString("autoSkipTarget").ifBlank { null } else d.autoSkipTarget,
+            keepVisible = o.optJSONArray("keepVisible")?.let { arr -> (0 until arr.length()).map { arr.getString(it) }.toSet() }
+                ?: d.keepVisible,
         )
     }
 

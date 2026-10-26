@@ -3,8 +3,9 @@ package app.quiet.service
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import app.quiet.QuietApp
+import quiet.core.settings.SettingsLock
 
-/** Quick Settings tile: tap to start an hour of focus, tap again to end it. */
+/** Quick Settings tile: tap to start an hour of focus, tap again to end it (unless the settings lock says wait). */
 class FocusTileService : TileService() {
     override fun onStartListening() {
         render()
@@ -14,7 +15,8 @@ class FocusTileService : TileService() {
         val now = System.currentTimeMillis()
         QuietApp.store.updateSettings { s ->
             if (s.focusUntil > now) {
-                if (s.strictMode) s else s.copy(focusUntil = 0L)
+                val ended = s.copy(focusUntil = 0L)
+                if (SettingsLock.allows(s, ended, now)) ended else s
             } else {
                 s.copy(focusUntil = now + 60 * 60_000L)
             }

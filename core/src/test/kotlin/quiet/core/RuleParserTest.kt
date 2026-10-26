@@ -1,6 +1,7 @@
 package quiet.core
 
 import org.junit.Test
+import quiet.core.rules.LaunchGuess
 import quiet.core.rules.RuleParseException
 import quiet.core.rules.RuleParser
 import kotlin.test.assertEquals
@@ -42,6 +43,26 @@ class RuleParserTest {
 
     @Test fun `wrong schema is rejected`() {
         assertFailsWith<RuleParseException> { RuleParser.parse(minimal().replace("\"schemaVersion\": 2", "\"schemaVersion\": 1")) }
+    }
+
+    @Test fun `keep areas parse and must name a known signal`() {
+        val withKeep = minimal().replace(
+            """{"id": "s", "label": "S", "kind": "VIDEO_FEED"}""",
+            """{"id": "s", "label": "S", "kind": "VIDEO_FEED", "keep": {"signal": "a", "name": "Stories"}}""",
+        )
+        assertEquals("Stories", RuleParser.parse(withKeep).surface("s")?.keep?.name)
+        assertFailsWith<RuleParseException> { RuleParser.parse(withKeep.replace("\"signal\": \"a\"", "\"signal\": \"nope\"")) }
+    }
+
+    @Test fun `instagram home keeps the stories row`() {
+        assertEquals("storiesTray", Fixtures.rules("instagram").surface("home")?.keep?.signal)
+    }
+
+    @Test fun `launch guess parses and must name a known surface and signal`() {
+        assertEquals(LaunchGuess("s", "a"), RuleParser.parse(minimal(extra = """, "launch": {"surface": "s", "signal": "a"}""")).launch)
+        assertFailsWith<RuleParseException> { RuleParser.parse(minimal(extra = """, "launch": {"surface": "nope", "signal": "a"}""")) }
+        assertFailsWith<RuleParseException> { RuleParser.parse(minimal(extra = """, "launch": {"surface": "s", "signal": "nope"}""")) }
+        assertEquals(LaunchGuess("for_you", "videoActions"), Fixtures.rules("tiktok").launch)
     }
 
     @Test fun `auto skip must be a nav target`() {

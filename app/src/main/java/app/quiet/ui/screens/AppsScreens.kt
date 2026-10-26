@@ -67,13 +67,24 @@ fun swipesLabel(n: Int): String = when (n) {
     else -> "+$n more"
 }
 
-/** One-line summary of an app's setup for the Apps list. */
+private val Mode.done: String
+    get() = when (this) {
+        Mode.ALLOW -> "allowed"
+        Mode.PAUSE -> "paused"
+        Mode.LIMIT -> "limited"
+        Mode.BLOCK -> "blocked"
+    }
+
+/** One-line summary of an app's setup: "Reels tab blocked, Home feed blocked (Stories stay)". */
 fun summary(rules: AppRules, s: Settings): String {
     val a = s.app(rules.app)
     if (!a.enabled) return "Not managed. Time is still counted."
     val blocked = rules.surfaces.filter { it.kind != SurfaceKind.MESSAGES && it.kind != SurfaceKind.VIDEO_VIEWER }
         .filter { s.modeFor(rules.app, it.id) != Mode.ALLOW }
-        .joinToString { "${it.label} ${s.modeFor(rules.app, it.id).label.lowercase()}" }
+        .joinToString { surface ->
+            val kept = surface.keep?.takeIf { s.keepsVisible(rules.app, surface.id) }?.let { " (${it.name} stay)" }.orEmpty()
+            "${surface.label} ${s.modeFor(rules.app, surface.id).done}$kept"
+        }
     return blocked.ifEmpty { "Everything allowed" }
 }
 
@@ -182,6 +193,12 @@ fun AppDetailScreen(appId: String) {
                 Segmented(Mode.entries, mode, { it.label }) { m -> update { it.copy(modes = it.modes + (surface.id to m)) } }
                 Spacer(Modifier.height(6.dp))
                 Text(mode.explain(settings.budgetMinutes, settings.pauseSeconds, settings.pauseMinutes), style = MaterialTheme.typography.bodySmall, color = c.textDim)
+                val keep = surface.keep
+                if (keep != null && mode != Mode.ALLOW) {
+                    SwitchRow("Keep ${keep.name} visible", surface.id in a.keepVisible, keep.description) { on ->
+                        update { it.copy(keepVisible = if (on) it.keepVisible + surface.id else it.keepVisible - surface.id) }
+                    }
+                }
             }
         }
 

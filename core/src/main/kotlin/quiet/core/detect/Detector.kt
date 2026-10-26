@@ -17,6 +17,8 @@ data class Reading(
     /** Y coordinate where the app's bottom tab bar begins, or null when there is no tab bar on screen. */
     val tabBarTop: Int?,
     val truncated: Boolean,
+    /** Y coordinate where the surface's keep area (like the Stories row) ends, or null when it isn't on screen. */
+    val keepBottom: Int? = null,
 ) {
     val isUnknown: Boolean get() = surface == null
 
@@ -46,6 +48,7 @@ object Detector {
             ?.takeIf { it.top > tree.screenHeight / 2 }
             ?.top
 
+        val keep = rule?.let { rules.surface(it.surface)?.keep }
         return Reading(
             app = rules.app,
             surface = rule?.surface,
@@ -54,8 +57,29 @@ object Detector {
             signature = signature(tree, rules.signatureIds),
             tabBarTop = tabBarTop,
             truncated = tree.truncated,
+            keepBottom = keep?.let { keepBottom(rules, tree, it.signal, tabBarTop) },
         )
     }
+
+    /**
+     * Lowest edge of the keep area's nodes. A matched story bubble's name sits below it in the same
+     * row item, so a row-sized parent counts too. Null when nothing is on screen or the area reaches
+     * so far down that keeping it would leave little covered: then the whole surface is covered.
+     */
+    private fun keepBottom(rules: AppRules, tree: UiTree, signal: String, tabBarTop: Int?): Int? {
+        val sig = rules.signals[signal] ?: return null
+        val limit = minOf(tabBarTop ?: tree.screenHeight, (tree.screenHeight * KEEP_MAX_FRACTION).toInt())
+        val bottom = tree.nodes.asSequence()
+            .filter { n -> sig.anyOf.any { it.matches(n, tree) } }
+            .map { n ->
+                val p = tree.parentOf(n)
+                if (p != null && p.height >= n.height && p.height <= tree.screenHeight / 4) maxOf(n.bottom, p.bottom) else n.bottom
+            }
+            .maxOrNull() ?: return null
+        return bottom.takeIf { it in 1 until limit }
+    }
+
+    private const val KEEP_MAX_FRACTION = 0.6
 
     /**
      * A fingerprint of what's on screen, built from visible text that doesn't change while a video

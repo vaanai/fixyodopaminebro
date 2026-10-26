@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -49,11 +50,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.quiet.ui.theme.Q
+import quiet.core.settings.UnlockKind
 
 val CardShape = RoundedCornerShape(22.dp)
 
@@ -269,6 +272,51 @@ fun <T> Segmented(options: List<T>, selected: T, label: (T) -> String, modifier:
     }
 }
 
+/** One option in a pick-one list: a radio dot, a title, and a line on what picking it does. */
+@Composable
+fun ChoiceRow(title: String, subtitle: String? = null, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = Q.colors
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(shape)
+            .background(if (selected) c.accentDim else Color.Transparent)
+            .border(1.dp, if (selected) c.accent else c.outline, shape)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(20.dp).clip(CircleShape).border(2.dp, if (selected) c.accent else c.textFaint, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Box(Modifier.size(10.dp).clip(CircleShape).background(c.accent))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = c.text)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = c.textDim)
+        }
+    }
+}
+
+/** A short explanation under a setting. */
+@Composable
+fun Note(text: String, modifier: Modifier = Modifier) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = Q.colors.textDim, modifier = modifier)
+}
+
+/** A line with a dot in front, for short lists inside cards. */
+@Composable
+fun Bullet(text: String, color: Color = Q.colors.textDim) {
+    Row(Modifier.padding(vertical = 3.dp)) {
+        Text("•", style = MaterialTheme.typography.bodyMedium, color = Q.colors.accent, modifier = Modifier.width(16.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = color)
+    }
+}
+
 @Composable
 fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
     val c = Q.colors
@@ -426,6 +474,16 @@ fun AppIcon(packageName: String, label: String, size: Dp = 36.dp) {
 
 fun isInstalled(pm: PackageManager, pkg: String): Boolean =
     runCatching { pm.getApplicationInfo(pkg, 0); true }.getOrDefault(false)
+
+/** "1 minute", "5 minutes". */
+fun plural(n: Int, word: String): String = if (n == 1) "1 $word" else "$n ${word}s"
+
+/** What one unlock gives, in words: "5 more videos" or "5 minutes". */
+fun unlockLabel(kind: UnlockKind, videos: Int, minutes: Int): String = when (kind) {
+    UnlockKind.VIDEOS -> plural(videos, "more video")
+    UnlockKind.MINUTES -> plural(minutes, "minute")
+    UnlockKind.CHOOSE -> "${unlockLabel(UnlockKind.VIDEOS, videos, minutes)} or ${unlockLabel(UnlockKind.MINUTES, videos, minutes)}"
+}
 
 fun formatMinutes(seconds: Int): String {
     val m = seconds / 60

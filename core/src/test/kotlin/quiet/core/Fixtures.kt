@@ -71,6 +71,20 @@ object Fixtures {
         igTabs(this, "feed_tab")
     }.build()
 
+    /** Home with the Stories row: a tray container holding story bubbles, each with a name under it. */
+    fun igHomeWithStories(trayTop: Int = 230, trayBottom: Int = 560, byIdOnly: Boolean = false): UiTree = Screen(IG).apply {
+        val tray = node(id = if (byIdOnly) "$IG:id/reels_tray_container" else null, top = trayTop, bottom = trayBottom)
+        if (!byIdOnly) {
+            for ((i, name) in listOf("Your story", "sam's story at column 2. Unseen.").withIndex()) {
+                val item = node(parent = tray, top = trayTop + 20, bottom = trayBottom - 10, left = i * 260, right = i * 260 + 240)
+                node(parent = item, desc = name, clickable = true, top = trayTop + 20, bottom = trayBottom - 80, left = i * 260, right = i * 260 + 240)
+                node(parent = item, text = name.substringBefore("'s"), top = trayBottom - 70, bottom = trayBottom - 10, left = i * 260, right = i * 260 + 240)
+            }
+        }
+        node(text = "friend posted a photo", top = trayBottom + 40, bottom = trayBottom + 140)
+        igTabs(this, "feed_tab")
+    }.build()
+
     fun igThread(): UiTree = Screen(IG).apply {
         node(text = "lol watch this", top = 400, bottom = 500)
         node(id = "$IG:id/row_thread_composer_edittext", hint = "Message...", cls = "android.widget.EditText", editable = true, top = 2200, bottom = 2300)
@@ -95,6 +109,20 @@ object Fixtures {
             bottomTab(label = label, selected = selectionVisible && label == "Home", asText = true)
         }
     }.build()
+
+    /** TikTok mid cold start: the read ran out of time inside the video pager, before reaching any tabs. */
+    fun ttStartingUp(): UiTree = Screen(TT).apply {
+        node(desc = "Like video. 1,442 likes", clickable = true, left = 904, top = 1273, bottom = 1438)
+    }.build().let { UiTree(it.packageName, it.nodes, it.screenWidth, it.screenHeight, truncated = true) }
+
+    /** A single video opened from a link: read in full, and there are no tabs. */
+    fun ttSharedVideo(): UiTree = Screen(TT).apply {
+        node(text = "@friend", top = 1900, bottom = 1950)
+        node(desc = "Like video. 88 likes", clickable = true, top = 1200, bottom = 1300)
+    }.build()
+
+    /** TikTok's splash screen: nothing to read yet. */
+    fun ttSplash(): UiTree = Screen(TT).apply { node(cls = "ImageView", top = 1000, bottom = 1400) }.build()
 
     fun ttInbox(): UiTree = Screen(TT).apply {
         node(text = "Messages", top = 300, bottom = 400)

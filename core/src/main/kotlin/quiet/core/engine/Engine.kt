@@ -8,6 +8,7 @@ import quiet.core.settings.Mode
 import quiet.core.settings.Origin
 import quiet.core.settings.Settings
 import quiet.core.settings.UNLIMITED
+import quiet.core.settings.UnlockKind
 import quiet.core.stats.DayStats
 import java.time.Instant
 import java.time.ZoneId
@@ -29,6 +30,8 @@ data class EngineInput(
     val settings: Settings,
     val today: DayStats,
     val scroll: ScrollInfo? = null,
+    /** The app came to the front straight from another app (a link or a share), not from the home screen. */
+    val fromApp: Boolean = false,
 )
 
 enum class CoverReason {
@@ -61,7 +64,7 @@ data class Cover(
     val offerBack: Boolean,
     val canUnlock: Boolean,
     val unlockMinutes: Int,
-    /** "Watch N more" unlock size, 0 when that kind of unlock is off. */
+    /** "Watch N more" unlock size. */
     val unlockVideos: Int,
     val unlockWaitSeconds: Int,
     val unlocksLeft: Int,
@@ -71,7 +74,17 @@ data class Cover(
     val bottomPx: Int?,
     val origin: Origin? = null,
     val allowedSwipes: Int = 0,
+    val unlockKind: UnlockKind = UnlockKind.MINUTES,
+    /** The cover starts at this y, leaving what's above it usable (like the Stories row), or at the top when null. */
+    val topPx: Int? = null,
+    /** What stays visible above the cover ("Stories"), when [topPx] is set. */
+    val keptName: String? = null,
+    /** Swiped on from a video a link opened: going back means back to the app the link came from. */
+    val fromLink: Boolean = false,
 ) {
+    /** The unlocks the block screen offers. */
+    val unlockOffers: List<UnlockKind> get() = unlockKind.offers(appLimit = reason == CoverReason.APP_LIMIT)
+
     /** Two covers with the same key are the same screen; the overlay is kept rather than redrawn. */
     val key: String get() = "$reason/$app/$surface"
 }
@@ -151,14 +164,24 @@ class Engine {
     private data class VideoPass(val remaining: Int, val until: Long)
     private val videoPasses = mutableMapOf<String, VideoPass>()
     private val lastSkipAt = mutableMapOf<String, Long>()
+    private var enteredAt = 0L
+    private var launchSettled = false
+    private var guessing = false
+    private var linkVisit = false
+    private var linkSwipes = 0
 
     fun evaluate(input: EngineInput): Decision {
         val now = input.now
-        val raw = input.reading
-        if (app != raw.app) {
+        if (app != input.reading.app) {
             resetApp()
-            app = raw.app
+            app = input.reading.app
+            enteredAt = now
+            launchSettled = false
+            linkVisit = input.fromApp && input.settings.linksPlay
+            linkSwipes = 0
         }
+        val raw = guessAtLaunch(input.rules, input.reading, now) ?: stillOnFeed(input.reading) ?: input.reading
+        guessing = raw !== input.reading
 
         // A partial read that already shows a chat is trusted: chats are never covered.
         if (raw.isUnknown || (raw.truncated && raw.kind != SurfaceKind.MESSAGES)) {
@@ -182,10 +205,13 @@ class Engine {
 
         val surface = raw.surface!!
         val kind = raw.kind!!
+        // A visit that started from a link lasts while you stay with videos; going anywhere else ends it.
+        if (kind != SurfaceKind.VIDEO_FEED && kind != SurfaceKind.VIDEO_VIEWER) linkVisit = false
         val events = mutableListOf<EngineEvent>()
         val swipesBefore = session?.takeIf { it.surface == surface }?.swipes
         trackVideo(raw, surface, kind, input.scroll, now, events)
         val swiped = swipesBefore != null && (session?.swipes ?: 0) > swipesBefore
+        if (swiped && linkVisit && now - enteredAt >= LINK_SETTLE_MS) linkSwipes++
         var passEnded = false
         if (swiped) videoPasses[raw.app]?.let { p ->
             if (p.remaining <= 0) {
@@ -232,6 +258,8 @@ class Engine {
 
         fun cover(reason: CoverReason, offerBack: Boolean = false, fullScreen: Boolean = false): Cover {
             val canUnlock = reason != CoverReason.PAUSE && s.canUnlock(focus) && unlocksLeft > 0
+            val keep = rules.surface(surface)?.keep
+            val top = input.reading.keepBottom?.takeIf { !fullScreen && keep != null && s.keepsVisible(appId, surface) }
             return Cover(
                 reason = reason,
                 app = appId,
@@ -250,6 +278,9 @@ class Engine {
                 bottomPx = if (fullScreen || s.coverStyle == quiet.core.settings.CoverStyle.FULL_SCREEN) null else input.reading.tabBarTop,
                 origin = session?.origin,
                 allowedSwipes = session?.let { s.viewerSwipesFor(appId, it.origin) } ?: 0,
+                unlockKind = s.unlockKind,
+                topPx = top,
+                keptName = keep?.name?.takeIf { top != null },
             )
         }
 
@@ -278,6 +309,16 @@ class Engine {
                 return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true))
             }
             return base.copy(pill = unlockedUntil?.let { passPill(it, "Unlocked") })
+        }
+
+        // A link from another app (a TikTok texted to you) often opens inside the feed. The video it
+        // opened plays, and swiping on is limited like a video sent in a chat.
+        if (linkVisit && kind == SurfaceKind.VIDEO_FEED) {
+            val allowed = s.viewerSwipesFor(appId, Origin.MESSAGES)
+            if (allowed != UNLIMITED && linkSwipes > allowed && unlockedUntil == null) {
+                return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true).copy(fromLink = true))
+            }
+            return base.copy(isFeed = false, isViewer = true, pill = unlockedUntil?.let { passPill(it, "Unlocked") })
         }
 
         var mode = s.modeFor(appId, surface)
@@ -313,12 +354,42 @@ class Engine {
         }
     }
 
+    /**
+     * An app that has just come to the front can be too busy to read in full: TikTok's first reads at a
+     * cold start stop inside the video pager, before the tabs, and look like a single video. While the
+     * app is starting, such a read is taken to be the surface it opens on, so For You is covered at once
+     * instead of seconds later. The first complete read, or a few seconds, ends the guessing.
+     */
+    private fun guessAtLaunch(rules: AppRules, r: Reading, now: Long): Reading? {
+        val launch = rules.launch ?: return null
+        if (launchSettled) return null
+        if ((!r.isUnknown && !r.truncated) || now - enteredAt > LAUNCH_GUESS_MS) {
+            launchSettled = true
+            return null
+        }
+        if (!r.truncated || launch.signal !in r.signals) return null
+        if (!r.isUnknown && r.kind != SurfaceKind.VIDEO_VIEWER) return null
+        val info = rules.surface(launch.surface) ?: return null
+        return r.copy(surface = info.id, kind = info.kind)
+    }
+
+    /**
+     * A partial read that only shows a video, while you're watching a feed, is still that feed: the read
+     * ran out before reaching the tabs. Taking it for a single video would restart the swipe count.
+     */
+    private fun stillOnFeed(r: Reading): Reading? {
+        val feed = session?.takeIf { it.kind == SurfaceKind.VIDEO_FEED } ?: return null
+        if (!r.truncated || r.kind != SurfaceKind.VIDEO_VIEWER) return null
+        return r.copy(surface = feed.surface, kind = SurfaceKind.VIDEO_FEED)
+    }
+
     /** A blocked feed: show the cover and, on a fresh landing, try to jump somewhere useful. */
     private fun blocked(input: EngineInput, kind: SurfaceKind, base: Decision, cover: Cover): Decision {
         val target = input.settings.app(input.rules.app).autoSkipTarget
             ?.takeIf { input.rules.navTarget(it) != null }
         val land = landing
-        if (target == null || kind != SurfaceKind.VIDEO_FEED || land == null) return base.copy(cover = cover)
+        // A guessed read may not have reached the tab to skip to yet: cover now, skip on a full read.
+        if (target == null || kind != SurfaceKind.VIDEO_FEED || land == null || guessing) return base.copy(cover = cover)
         // Coming straight back after a skip means you want the options: show the cover instead.
         val key = "${input.rules.app}.${land.surface}"
         val lastSkip = lastSkipAt[key]
@@ -478,6 +549,13 @@ class Engine {
 
     companion object {
         const val UNKNOWN_HOLD_MS = 1_500L
+        /** How long after an app comes to the front a partial read can be taken for its launch surface. */
+        const val LAUNCH_GUESS_MS = 10_000L
+        /**
+         * A link that cold-starts an app keeps loading for a few seconds, and the feed shifts under the
+         * video while it does. Swipes away from the linked video only count after this.
+         */
+        const val LINK_SETTLE_MS = 6_000L
         const val ORIGIN_MEMORY_MS = 120_000L
         const val SWIPE_SCROLL_WINDOW_MS = 1_500L
         const val MIN_SWIPE_GAP_MS = 800L

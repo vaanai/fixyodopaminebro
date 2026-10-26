@@ -15,6 +15,7 @@ import quiet.core.settings.FocusWindow
 import quiet.core.settings.Mode
 import quiet.core.settings.Origin
 import quiet.core.settings.Settings
+import quiet.core.settings.UnlockKind
 import quiet.core.stats.DayStats
 import java.time.DayOfWeek
 import java.time.LocalDateTime
@@ -35,11 +36,12 @@ class EngineTest {
     private var settings = Settings()
     private var today = DayStats("2026-10-22")
     private var scroll: ScrollInfo? = null
+    private var fromApp = false
     private val engine = Engine()
 
     private fun see(rules: AppRules, tree: UiTree, advanceMs: Long = 200): Decision {
         now += advanceMs
-        return engine.evaluate(EngineInput(now, zone, rules, Detector.read(rules, tree), settings, today, scroll))
+        return engine.evaluate(EngineInput(now, zone, rules, Detector.read(rules, tree), settings, today, scroll, fromApp))
     }
 
     private var pagerIndex = 0
@@ -159,13 +161,52 @@ class EngineTest {
         assertNotNull(see(ig, Fixtures.igReelsTab()).cover)
     }
 
-    @Test fun `no unlock offered when out of unlocks or strict`() {
+    @Test fun `no unlock offered when out of unlocks or unlocks are off`() {
         today = today.copy(unlocks = 3)
         assertFalse(see(ig, Fixtures.igReelsTab()).cover!!.canUnlock)
         today = today.copy(unlocks = 0)
-        settings = settings.copy(strictMode = true)
+        settings = settings.copy(unlocksEnabled = false)
         engine.onLeftApp()
         assertFalse(see(ig, Fixtures.igReelsTab()).cover!!.canUnlock)
+    }
+
+    @Test fun `the cover offers the unlock you chose`() {
+        settings = settings.withApp("instagram") { it.copy(autoSkipTarget = null) }
+        assertEquals(listOf(UnlockKind.VIDEOS), see(ig, Fixtures.igReelsTab()).cover!!.unlockOffers)
+        settings = settings.copy(unlockKind = UnlockKind.MINUTES)
+        assertEquals(listOf(UnlockKind.MINUTES), see(ig, Fixtures.igReelsTab()).cover!!.unlockOffers)
+        settings = settings.copy(unlockKind = UnlockKind.CHOOSE)
+        assertEquals(listOf(UnlockKind.VIDEOS, UnlockKind.MINUTES), see(ig, Fixtures.igReelsTab()).cover!!.unlockOffers)
+    }
+
+    @Test fun `a whole-app limit only unlocks by time`() {
+        settings = settings.withApp("instagram") { it.copy(dailyLimitMinutes = 30) }
+        today = today.copy(appSeconds = mapOf(Fixtures.IG to 30 * 60))
+        val cover = see(ig, Fixtures.igHome()).cover!!
+        assertEquals(CoverReason.APP_LIMIT, cover.reason)
+        assertEquals(listOf(UnlockKind.MINUTES), cover.unlockOffers)
+    }
+
+    @Test fun `blocked home keeps the stories row uncovered`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        val cover = assertNotNull(see(ig, Fixtures.igHomeWithStories(trayBottom = 560)).cover)
+        assertEquals(CoverReason.BLOCKED, cover.reason)
+        assertEquals(550, cover.topPx)
+        assertEquals(2250, cover.bottomPx)
+        assertEquals("Stories", cover.keptName)
+    }
+
+    @Test fun `blocked home covers everything when keeping stories is off or the row is gone`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNull(see(ig, Fixtures.igHome()).cover!!.topPx)
+        settings = settings.withApp("instagram") { it.copy(keepVisible = emptySet()) }
+        val cover = see(ig, Fixtures.igHomeWithStories()).cover!!
+        assertNull(cover.topPx)
+        assertNull(cover.keptName)
+    }
+
+    @Test fun `allowed home with a stories row is not covered`() {
+        assertNull(see(ig, Fixtures.igHomeWithStories()).cover)
     }
 
     @Test fun `limit mode spends the shared allowance then blocks`() {
@@ -220,6 +261,93 @@ class EngineTest {
         assertNotNull(see(tt, Fixtures.ttForYou(), advanceMs = 100).cover)
         // Reaching the inbox clears everything.
         assertNull(see(tt, Fixtures.ttInbox()).cover)
+    }
+
+    @Test fun `tiktok starting up is covered before its tabs can be read`() {
+        assertNull(see(tt, Fixtures.ttSplash()).cover)
+        val d = see(tt, Fixtures.ttStartingUp())
+        assertEquals("for_you", assertNotNull(d.cover).surface)
+        // The tab to skip to isn't readable yet: the skip waits for the full feed.
+        assertNull(d.command)
+        assertEquals(Command.Navigate("tiktok", "inbox"), see(tt, Fixtures.ttForYou()).command)
+    }
+
+    @Test fun `a complete read ends the launch guess`() {
+        see(tt, Fixtures.ttInbox())
+        val d = see(tt, Fixtures.ttStartingUp(), advanceMs = 2000)
+        assertNull(d.cover)
+        assertTrue(d.isViewer)
+    }
+
+    @Test fun `the launch guess lasts only a few seconds`() {
+        see(tt, Fixtures.ttSplash())
+        assertNull(see(tt, Fixtures.ttStartingUp(), advanceMs = Engine.LAUNCH_GUESS_MS + 1).cover)
+    }
+
+    @Test fun `a shared video opened at launch still plays`() {
+        val d = see(tt, Fixtures.ttSharedVideo())
+        assertNull(d.cover)
+        assertTrue(d.isViewer)
+    }
+
+    @Test fun `leaving and coming back guesses again`() {
+        see(tt, Fixtures.ttInbox())
+        engine.onLeftApp()
+        assertEquals("for_you", see(tt, Fixtures.ttStartingUp(), advanceMs = 5000).cover?.surface)
+    }
+
+    @Test fun `a link from another app plays inside the feed, swiping on is stopped`() {
+        fromApp = true
+        val first = see(tt, Fixtures.ttForYou(author = "@friend"))
+        assertNull(first.cover)
+        assertNull(first.command)
+        assertTrue(first.isViewer)
+        see(tt, Fixtures.ttForYou(author = "@friend"), advanceMs = Engine.LINK_SETTLE_MS)
+        swipe()
+        val next = see(tt, Fixtures.ttForYou(author = "@stranger"), advanceMs = 900)
+        val cover = assertNotNull(next.cover)
+        assertEquals(CoverReason.SWIPE_LIMIT, cover.reason)
+        assertTrue(cover.offerBack)
+        assertTrue(cover.fromLink)
+    }
+
+    @Test fun `the feed shifting while a link loads isn't a swipe`() {
+        fromApp = true
+        see(tt, Fixtures.ttForYou(author = "@friend"))
+        swipe()
+        assertNull(see(tt, Fixtures.ttForYou(author = "@friend loaded"), advanceMs = 2500).cover)
+    }
+
+    @Test fun `partial reads don't restart the swipe count on a link`() {
+        fromApp = true
+        see(tt, Fixtures.ttForYou(author = "@friend"))
+        // A partial read mid-video looks like a single video, but it's still the feed.
+        assertNull(see(tt, Fixtures.ttStartingUp(), advanceMs = Engine.LINK_SETTLE_MS).cover)
+        swipe()
+        assertEquals(CoverReason.SWIPE_LIMIT, see(tt, Fixtures.ttForYou(author = "@stranger"), advanceMs = 900).cover?.reason)
+    }
+
+    @Test fun `a link visit ends when you go elsewhere in the app`() {
+        fromApp = true
+        see(tt, Fixtures.ttForYou())
+        see(tt, Fixtures.ttInbox())
+        assertEquals(CoverReason.BLOCKED, see(tt, Fixtures.ttForYou(), advanceMs = 30_000).cover?.reason)
+    }
+
+    @Test fun `links stay blocked when the option is off`() {
+        settings = settings.copy(linksPlay = false)
+        fromApp = true
+        assertNotNull(see(tt, Fixtures.ttForYou()).cover)
+    }
+
+    @Test fun `opening from the home screen is not a link`() {
+        assertNotNull(see(tt, Fixtures.ttForYou()).cover)
+    }
+
+    @Test fun `a cold-start link isn't covered by the launch guess`() {
+        fromApp = true
+        assertNull(see(tt, Fixtures.ttStartingUp()).cover)
+        assertNull(see(tt, Fixtures.ttForYou()).cover)
     }
 
     @Test fun `instagram reels jumps to messages, coming straight back shows the options`() {

@@ -6,9 +6,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -20,8 +22,11 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.content.ContextCompat
+import app.quiet.BuildConfig
+import app.quiet.MainActivity
 import app.quiet.QuietApp
 import app.quiet.data.Store
+import app.quiet.ui.components.plural
 import org.json.JSONArray
 import org.json.JSONObject
 import quiet.core.detect.Detector
@@ -61,6 +66,11 @@ class QuietService : AccessibilityService(), CoverActions {
     private var lastEvalAt = 0L
     private var foreground: String? = null
     private var foregroundSince = 0L
+    private var enteredFromApp = false
+    private var lastApp: String? = null
+    private var lastAppSince = 0L
+    private var appBefore: String? = null
+    private var cameFrom: String? = null
     private var nudgesSent = 0
     private var lastTick = 0L
     private var carryMs = 0L
@@ -73,6 +83,7 @@ class QuietService : AccessibilityService(), CoverActions {
     private var lastLoggedSurface: String? = null
     private val genericUnlocks = mutableMapOf<String, Long>()
     private var receiversRegistered = false
+    private var debugReceiverRegistered = false
 
     private val evalRunnable = Runnable { evaluateSafely() }
     private val tickRunnable = object : Runnable {
@@ -94,6 +105,14 @@ class QuietService : AccessibilityService(), CoverActions {
         main.post(tickRunnable)
         LiveState.update { it.copy(connected = true, lastHeartbeat = System.currentTimeMillis()) }
         Log.i(TAG, "service connected")
+        returnAfterTurnOn()
+    }
+
+    /** Switched on from Quiet's own screens: come back to Quiet instead of staying in Android's settings. */
+    private fun returnAfterTurnOn() {
+        if (SystemClock.elapsedRealtime() > QuietApp.returnAfterTurnOnUntil) return
+        QuietApp.returnAfterTurnOnUntil = 0L
+        runCatching { startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -114,8 +133,11 @@ class QuietService : AccessibilityService(), CoverActions {
         runCatching { media.release() }
         if (receiversRegistered) {
             runCatching { unregisterReceiver(screenReceiver) }
-            runCatching { unregisterReceiver(debugReceiver) }
             receiversRegistered = false
+        }
+        if (debugReceiverRegistered) {
+            runCatching { unregisterReceiver(debugReceiver) }
+            debugReceiverRegistered = false
         }
         store.flushNow()
         LiveState.update { it.copy(connected = false) }
@@ -185,8 +207,11 @@ class QuietService : AccessibilityService(), CoverActions {
         val rules = fg?.let { store.rules.value.forPackage(it) }
 
         if (rules == null) {
-            if (lastRules != null) engine.onLeftApp()
-            lastRules = null
+            // No readable app in front (mid-transition) isn't leaving: keep the app's state.
+            if (fg != null) {
+                if (lastRules != null) engine.onLeftApp()
+                lastRules = null
+            }
             val cover = genericLimitCover(fg, now)
             applyDecision(Decision(cover = cover), null, null)
             LiveState.update { it.copy(foreground = fg, reading = null, decision = lastDecision, engine = engine.snapshot()) }
@@ -200,13 +225,16 @@ class QuietService : AccessibilityService(), CoverActions {
         val reading = result?.let { Detector.read(rules, it.tree) } ?: Reading.unknown(rules.app)
         val scroll = lastScroll?.takeIf { lastScrollPkg == fg }
         val decision = engine.evaluate(
-            EngineInput(now, ZoneId.systemDefault(), rules, reading, settings, store.today(now), scroll),
+            EngineInput(now, ZoneId.systemDefault(), rules, reading, settings, store.today(now), scroll, enteredFromApp),
         )
         applyDecision(decision, rules, result)
 
+        if (settings.verboseLogging && decision.events.any { it.type == EventType.VIDEO }) {
+            Log.i(TAG, "video ${rules.app}.${reading.surface} truncated=${reading.truncated} scroll=${scroll?.index} sig=${reading.signature.take(40)}")
+        }
         if (settings.verboseLogging && reading.surface != lastLoggedSurface) {
             lastLoggedSurface = reading.surface
-            Log.i(TAG, "screen ${rules.app}.${reading.surface} kind=${reading.kind} signals=${reading.signals} cover=${decision.cover?.reason} nodes=${result?.tree?.nodes?.size}")
+            Log.i(TAG, "screen ${rules.app}.${reading.surface} kind=${reading.kind} signals=${reading.signals} cover=${decision.cover?.reason} nodes=${result?.tree?.nodes?.size} truncated=${reading.truncated}")
         }
         if (dumpRequested && result != null) {
             dumpRequested = false
@@ -314,7 +342,7 @@ class QuietService : AccessibilityService(), CoverActions {
         if (minutes >= every * (nudgesSent + 1)) {
             nudgesSent++
             val s = store.settings.value
-            overlays.toast(PillModel("You've been on ${labelFor(fg)} for $minutes minutes.", false, s.accent))
+            overlays.toast(PillModel("You've been on ${labelFor(fg)} for ${plural(minutes, "minute")}.", false, s.accent))
         }
     }
 
@@ -324,6 +352,18 @@ class QuietService : AccessibilityService(), CoverActions {
         foregroundSince = now
         nudgesSent = 0
         if (fg == null) return
+        // Straight from another app rather than the home screen: most likely a link or a share. Moments
+        // with no readable app in front (a cold start's splash) don't count as leaving.
+        if (fg != lastApp) {
+            // Another window flickering in front for a moment and going again isn't arriving from it.
+            val bounce = fg == appBefore && now - lastAppSince < BOUNCE_MS
+            enteredFromApp = !bounce && lastApp?.let { !isHome(it) } ?: false
+            cameFrom = lastApp.takeIf { enteredFromApp }
+            if (store.settings.value.verboseLogging) Log.i(TAG, "front $fg from $lastApp link=$enteredFromApp")
+            appBefore = lastApp
+            lastApp = fg
+            lastAppSince = now
+        }
         val s = store.settings.value
         val tracked = store.rules.value.forPackage(fg) != null || s.tracked.any { it.packageName == fg }
         if (tracked) store.mutateToday(now) { it.copy(opens = it.opens.plusCount(fg)) }
@@ -384,7 +424,10 @@ class QuietService : AccessibilityService(), CoverActions {
     }
 
     override fun onBack(cover: Cover) {
-        performGlobalAction(GLOBAL_ACTION_BACK)
+        // Inside an app a link opened, Back often has nowhere to go: return to the app the link came from.
+        val launch = cameFrom?.takeIf { cover.fromLink }?.let { packageManager.getLaunchIntentForPackage(it) }
+        val returned = launch != null && runCatching { startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+        if (!returned) performGlobalAction(GLOBAL_ACTION_BACK)
         main.postDelayed({ scheduleEval() }, 350)
     }
 
@@ -404,7 +447,7 @@ class QuietService : AccessibilityService(), CoverActions {
             else -> engine.unlock(cover.app, s.unlockMinutes, now)
         }
         store.mutateToday(now) { it.copy(unlocks = it.unlocks + 1) }
-        store.addLog(cover.appName, if (videos) "Unlocked ${s.unlockVideos} more videos" else "Unlocked for ${s.unlockMinutes} min")
+        store.addLog(cover.appName, if (videos) "Unlocked ${plural(s.unlockVideos, "more video")}" else "Unlocked for ${s.unlockMinutes} min")
         overlays.hideCover()
         media.release()
         scheduleEval()
@@ -440,7 +483,7 @@ class QuietService : AccessibilityService(), CoverActions {
         if (videos) engine.unlockVideos(app, s.unlockVideos, now) else engine.unlock(app, s.unlockMinutes, now)
         store.mutateToday(now) { it.copy(unlocks = it.unlocks + 1) }
         val name = store.rules.value.apps[app]?.displayName ?: app
-        store.addLog(name, if (videos) "Unlocked ${s.unlockVideos} more videos" else "Unlocked for ${s.unlockMinutes} min")
+        store.addLog(name, if (videos) "Unlocked ${plural(s.unlockVideos, "more video")}" else "Unlocked for ${s.unlockMinutes} min")
         scheduleEval()
         return true
     }
@@ -464,12 +507,19 @@ class QuietService : AccessibilityService(), CoverActions {
         return fromWindows ?: rootInActiveWindow?.packageName?.toString()?.takeIf { it != packageName }
     }
 
+    /**
+     * The app's main window. Apps float popups as windows of their own above it (TikTok's inbox-count
+     * bubble is one), so the biggest window of the app is read, not the top one. Equal sizes keep the
+     * top one, so a full-screen dialog still wins over what's under it.
+     */
     private fun findRoot(pkg: String): AccessibilityNodeInfo? {
+        val rect = android.graphics.Rect()
         val fromWindows = runCatching {
-            windows.asSequence()
+            windows
                 .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-                .mapNotNull { if (Build.VERSION.SDK_INT >= 33) it.getRoot(TreeReader.PREFETCH) else it.root }
-                .firstOrNull { it.packageName?.toString() == pkg }
+                .sortedByDescending { w -> w.getBoundsInScreen(rect); rect.width().toLong() * rect.height() }
+                .firstOrNull { it.root?.packageName?.toString() == pkg }
+                ?.let { if (Build.VERSION.SDK_INT >= 33) it.getRoot(TreeReader.PREFETCH) else it.root }
         }.getOrNull()
         return fromWindows ?: rootInActiveWindow?.takeIf { it.packageName?.toString() == pkg }
     }
@@ -488,6 +538,18 @@ class QuietService : AccessibilityService(), CoverActions {
     }
 
     private fun screenHeight(): Int = screenSize().second
+
+    /** The home screen app. Settings also answers the home intent (its fallback home while the phone boots), so only the default counts. */
+    private fun isHome(pkg: String): Boolean {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val default = runCatching {
+            packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+        }.getOrNull()
+        // With no default picked this resolves to the system chooser ("android"); then any home app but Settings counts.
+        if (default != null && default != "android") return pkg == default
+        val all = runCatching { packageManager.queryIntentActivities(home, 0).map { it.activityInfo.packageName } }.getOrDefault(emptyList())
+        return pkg in all && pkg != "com.android.settings"
+    }
 
     private fun isLocked(): Boolean = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
 
@@ -548,6 +610,7 @@ class QuietService : AccessibilityService(), CoverActions {
             put("signals", JSONArray(reading.signals.sorted()))
             put("signature", reading.signature)
             put("tabBarTop", reading.tabBarTop ?: JSONObject.NULL)
+            put("keepBottom", reading.keepBottom ?: JSONObject.NULL)
             put("nodes", nodes)
         }
         runCatching { file.writeText(json.toString(1)) }
@@ -580,7 +643,7 @@ class QuietService : AccessibilityService(), CoverActions {
     /**
      * Debug hooks for adb, e.g.
      * `adb shell am broadcast -a app.quiet.DEBUG --es cmd dump -p app.quiet`
-     * Commands: dump, reload, state, relock.
+     * Commands: dump, reload, state, relock. Debug builds only: any app could send these.
      */
     private val debugReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -604,8 +667,11 @@ class QuietService : AccessibilityService(), CoverActions {
             addAction(Intent.ACTION_USER_PRESENT)
         }
         ContextCompat.registerReceiver(this, screenReceiver, screen, ContextCompat.RECEIVER_NOT_EXPORTED)
-        ContextCompat.registerReceiver(this, debugReceiver, IntentFilter(DEBUG_ACTION), ContextCompat.RECEIVER_EXPORTED)
         receiversRegistered = true
+        if (BuildConfig.DEBUG) {
+            ContextCompat.registerReceiver(this, debugReceiver, IntentFilter(DEBUG_ACTION), ContextCompat.RECEIVER_EXPORTED)
+            debugReceiverRegistered = true
+        }
     }
 
     companion object {
@@ -614,6 +680,7 @@ class QuietService : AccessibilityService(), CoverActions {
         private const val TICK_MS = 1_000L
         private const val MAX_TICK_GAP_MS = 5_000L
         private const val EVAL_THROTTLE_MS = 250L
+        private const val BOUNCE_MS = 2_000L
         private const val EVAL_MIN_DELAY_MS = 40L
 
         @Volatile

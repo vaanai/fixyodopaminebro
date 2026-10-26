@@ -106,13 +106,32 @@ data class SurfaceRule(
     val condition: Condition,
 )
 
+/**
+ * Part of a surface that can stay usable while the rest is covered, like the Stories row above
+ * Instagram's Home feed. The cover starts below the lowest node matching [signal].
+ */
+data class KeepArea(
+    val signal: String,
+    /** What's kept, as the user calls it: "Stories". */
+    val name: String,
+    val description: String = "",
+)
+
 /** A surface the user can set a policy for. Several rules can lead to the same surface. */
 data class SurfaceInfo(
     val id: String,
     val label: String,
     val kind: SurfaceKind,
     val description: String = "",
+    val keep: KeepArea? = null,
 )
+
+/**
+ * The surface an app opens on, like TikTok's For You. An app that's still starting up is often too
+ * busy to read in full; for its first seconds in front, a partial read showing only [signal] (a
+ * video, with no tabs read yet) is taken to be [surface] instead of a single video.
+ */
+data class LaunchGuess(val surface: String, val signal: String)
 
 /** Where a button on the block screen should take you inside the app. */
 data class NavTarget(val id: String, val label: String, val signal: String)
@@ -135,6 +154,7 @@ data class AppRules(
     val signatureIds: List<String>,
     /** Where to go when the user lands on a blocked feed and auto-skip is on. */
     val autoSkipTarget: String?,
+    val launch: LaunchGuess? = null,
 ) {
     fun surface(id: String): SurfaceInfo? = surfaces.firstOrNull { it.id == id }
     fun navTarget(id: String): NavTarget? = nav.firstOrNull { it.id == id }

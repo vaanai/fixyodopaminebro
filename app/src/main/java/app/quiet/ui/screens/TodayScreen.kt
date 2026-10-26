@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.PauseCircle
 import androidx.compose.material.icons.rounded.Warning
@@ -32,7 +33,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.quiet.LocalEditor
+import app.quiet.LocalNav
 import app.quiet.QuietApp
+import app.quiet.Route
 import app.quiet.service.LiveState
 import app.quiet.service.QuietService
 import app.quiet.ui.components.AppIcon
@@ -43,8 +46,10 @@ import app.quiet.ui.components.SectionTitle
 import app.quiet.ui.components.SmallButton
 import app.quiet.ui.components.Stat
 import app.quiet.ui.components.formatMinutes
+import app.quiet.ui.components.unlockLabel
 import app.quiet.ui.theme.Q
 import quiet.core.engine.Engine
+import quiet.core.settings.UnlockKind
 import quiet.core.stats.DayStats
 import quiet.core.stats.StatsMath
 import java.time.LocalDate
@@ -62,6 +67,7 @@ fun TodayScreen() {
     val log by store.log.collectAsStateWithLifecycle()
     val rules by store.rules.collectAsStateWithLifecycle()
     val editor = LocalEditor.current
+    val nav = LocalNav.current
     val context = LocalContext.current
     val c = Q.colors
     val now = rememberNow()
@@ -99,7 +105,36 @@ fun TodayScreen() {
                     color = c.textDim,
                 )
                 Spacer(Modifier.height(12.dp))
-                SmallButton("Open Accessibility settings", accent = true) { openAccessibilitySettings(context) }
+                SmallButton(if (enabled || settings.disclosureAccepted) "Open Accessibility settings" else "Turn Quiet on", accent = true) {
+                    if (enabled || settings.disclosureAccepted) openAccessibilitySettings(context) else nav.go(Route.Disclosure)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // Set up before the settings lock existed: offer it once.
+        if (settings.lockSeconds == 0 && !settings.lockPromptSeen) {
+            QCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Lock, null, tint = c.accent)
+                    Spacer(Modifier.width(10.dp))
+                    Text("New: lock your settings", style = MaterialTheme.typography.titleMedium, color = c.text)
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Pick a wait, from 1 to 5 minutes, before Quiet can be made less strict. Future-you can't undo your limits on a whim.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = c.textDim,
+                )
+                Spacer(Modifier.height(12.dp))
+                Row {
+                    SmallButton("Set it up", accent = true) {
+                        QuietApp.store.updateSettings { it.copy(lockPromptSeen = true) }
+                        nav.go(Route.Section(SettingsSection.LOCK))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    SmallButton("Not now") { QuietApp.store.updateSettings { it.copy(lockPromptSeen = true) } }
+                }
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -151,7 +186,7 @@ fun TodayScreen() {
                 Stat(today.swipesStopped.toString(), "swipes\nstopped", Modifier.weight(1f))
                 Stat(today.skips.toString(), "auto-skips", Modifier.weight(1f))
                 val left = (settings.unlocksPerDay - today.unlocks).coerceAtLeast(0)
-                Stat(if (settings.strictMode || !settings.unlocksEnabled) "–" else "$left", "unlocks\nleft", Modifier.weight(1f))
+                Stat(if (!settings.unlocksEnabled) "–" else "$left", "unlocks\nleft", Modifier.weight(1f))
             }
         }
 
@@ -189,7 +224,7 @@ fun TodayScreen() {
         if (settings.protectionOn && settings.canUnlock(focusNow) && unlocksLeft > 0 && lockedApps.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             // Same pause as the block screen, so unlocking from here isn't the easy way round it.
-            var pending by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
+            var pending by remember { mutableStateOf<Pair<String, UnlockKind>?>(null) }
             var waitLeft by remember { mutableIntStateOf(0) }
             LaunchedEffect(pending) {
                 val p = pending ?: return@LaunchedEffect
@@ -198,7 +233,7 @@ fun TodayScreen() {
                     delay(1000)
                     waitLeft--
                 }
-                QuietService.instance?.unlockFromApp(p.first, videos = p.second)
+                QuietService.instance?.unlockFromApp(p.first, videos = p.second == UnlockKind.VIDEOS)
                 pending = null
             }
             QCard {
@@ -206,7 +241,7 @@ fun TodayScreen() {
                 val p = pending
                 if (p != null) {
                     val name = rules.apps[p.first]?.displayName ?: p.first
-                    val what = if (p.second) "${settings.unlockVideos} more videos" else "${settings.unlockMinutes} minutes"
+                    val what = unlockLabel(p.second, settings.unlockVideos, settings.unlockMinutes)
                     Text(
                         "Unlocking $name for $what in $waitLeft… Still want it?",
                         style = MaterialTheme.typography.bodySmall,
@@ -224,18 +259,19 @@ fun TodayScreen() {
                     for (app in lockedApps) {
                         Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(app.displayName, style = MaterialTheme.typography.bodyMedium, color = c.text, modifier = Modifier.weight(1f))
-                            if (settings.unlockVideos > 0) {
-                                SmallButton("${settings.unlockVideos} more") { pending = app.app to true }
-                                Spacer(Modifier.width(8.dp))
+                            val offers = settings.unlockKind.offers()
+                            offers.forEachIndexed { i, kind ->
+                                if (i > 0) Spacer(Modifier.width(8.dp))
+                                val label = if (kind == UnlockKind.VIDEOS) "${settings.unlockVideos} more" else "${settings.unlockMinutes} min"
+                                SmallButton(label) { pending = app.app to kind }
                             }
-                            SmallButton("${settings.unlockMinutes} min") { pending = app.app to false }
                         }
                     }
                 }
             }
         }
 
-        FocusCard(settings.focusUntil, now, settings.strictMode, Engine.isFocusActive(settings, now, ZoneId.systemDefault())) { until ->
+        FocusCard(settings.focusUntil, now, Engine.isFocusActive(settings, now, ZoneId.systemDefault())) { until ->
             editor.edit { it.copy(focusUntil = until) }
         }
 
@@ -298,7 +334,7 @@ fun TodayScreen() {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FocusCard(focusUntil: Long, now: Long, strict: Boolean, active: Boolean, set: (Long) -> Unit) {
+private fun FocusCard(focusUntil: Long, now: Long, active: Boolean, set: (Long) -> Unit) {
     val c = Q.colors
     Spacer(Modifier.height(12.dp))
     QCard {
@@ -322,7 +358,7 @@ private fun FocusCard(focusUntil: Long, now: Long, strict: Boolean, active: Bool
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (focusUntil > now) {
                 SmallButton("+30 min") { set(focusUntil + 30 * 60_000L) }
-                if (!strict) SmallButton("End now") { set(0L) }
+                SmallButton("End now") { set(0L) }
             } else {
                 SmallButton("30 min") { set(now + 30 * 60_000L) }
                 SmallButton("1 hour") { set(now + 60 * 60_000L) }

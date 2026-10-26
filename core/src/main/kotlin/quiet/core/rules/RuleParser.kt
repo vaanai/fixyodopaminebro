@@ -27,11 +27,18 @@ object RuleParser {
         }
 
         val surfaces = root.optJSONArray("surfaces").objects().map { s ->
+            val id = s.reqString("id")
+            val keep = s.optJSONObject("keep")?.let { k ->
+                val signal = k.reqString("signal")
+                if (signal !in signals) throw RuleParseException("surface $id keeps unknown signal $signal")
+                KeepArea(signal, k.reqString("name"), k.optString("description", ""))
+            }
             SurfaceInfo(
-                id = s.reqString("id"),
+                id = id,
                 label = s.reqString("label"),
                 kind = parseKind(s.reqString("kind")),
                 description = s.optString("description", ""),
+                keep = keep,
             )
         }
         val surfaceIds = surfaces.map { it.id }.toSet()
@@ -69,6 +76,14 @@ object RuleParser {
             throw RuleParseException("autoSkipTarget $autoSkip is not a nav target")
         }
 
+        val launch = root.optJSONObject("launch")?.let { l ->
+            val surface = l.reqString("surface")
+            val signal = l.reqString("signal")
+            if (surface !in surfaceIds) throw RuleParseException("launch points at unknown surface $surface")
+            if (signal !in signals) throw RuleParseException("launch uses unknown signal $signal")
+            LaunchGuess(surface, signal)
+        }
+
         return AppRules(
             app = app,
             displayName = root.reqString("displayName"),
@@ -85,6 +100,7 @@ object RuleParser {
             pagerSignal = optSignal("pagerSignal"),
             signatureIds = root.optJSONArray("signatureIds").strings(),
             autoSkipTarget = autoSkip,
+            launch = launch,
         )
     }
 

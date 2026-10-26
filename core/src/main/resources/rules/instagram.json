@@ -3,7 +3,7 @@
   "app": "instagram",
   "displayName": "Instagram",
   "packages": ["com.instagram.android"],
-  "version": 2,
+  "version": 3,
   "verified": true,
   "tabBarSignal": "tabBar",
   "pagerSignal": "reelPager",
@@ -51,6 +51,12 @@
       { "id": "reel_viewer_media_container" },
       { "id": "reel_viewer_texture_view" }
     ],
+    "storiesTray": [
+      { "idExact": "reels_tray_container", "maxBottomFraction": 0.6, "note": "The Stories row at the top of Home" },
+      { "id": "stories_tray", "maxBottomFraction": 0.6 },
+      { "descContains": "'s story", "maxBottomFraction": 0.5, "note": "A story bubble: 'name's story at column 2. Unseen.'" },
+      { "descStartsWith": "Your story", "maxBottomFraction": 0.5 }
+    ],
     "dmComposer": [
       { "id": "row_thread_composer_edittext" },
       { "id": "thread_composer", "editable": true },
@@ -89,7 +95,10 @@
   "surfaces": [
     { "id": "reels", "label": "Reels tab", "kind": "VIDEO_FEED", "description": "The endless Reels feed." },
     { "id": "reel_viewer", "label": "Single reels", "kind": "VIDEO_VIEWER", "description": "A reel opened from a chat, a profile, your feed or Explore." },
-    { "id": "home", "label": "Home feed", "kind": "FEED", "description": "Posts from people you follow, plus suggestions." },
+    {
+      "id": "home", "label": "Home feed", "kind": "FEED", "description": "Posts from people you follow, plus suggestions.",
+      "keep": { "signal": "storiesTray", "name": "Stories", "description": "The Stories row at the top stays tappable. Only the posts below it are covered." }
+    },
     { "id": "explore", "label": "Search & Explore", "kind": "EXPLORE", "description": "The Explore grid and search." },
     { "id": "stories", "label": "Stories", "kind": "STORIES", "description": "Stories from people you follow." },
     { "id": "messages", "label": "Messages", "kind": "MESSAGES", "description": "Your inbox and chats. Never blocked." },

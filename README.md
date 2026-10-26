@@ -3,13 +3,15 @@
 Quiet keeps the endless parts of Instagram, TikTok and YouTube out of your day, and leaves the parts you actually need (chats, friends, the videos people send you) alone.
 
 - **Reels tab / For You / Shorts**: blocked, limited, or behind a breathing pause. You choose per feed.
-- **A reel a friend sent you** plays normally. Swiping past it into the algorithm is what gets stopped, with a separate allowance for chats, profiles, your feed, Explore and stories.
+- **A reel a friend sent you** plays normally. Swiping past it into the algorithm is what gets stopped, with a separate allowance for chats, profiles, your feed, Explore and stories. Links opened from other apps (a TikTok someone texted you) play too, even when the app opens them inside a blocked feed.
 - **Blocked means a way out**: Instagram's Reels tab drops you into Messages, and TikTok skips For You and opens on your Inbox. Come straight back and you get the block screen with unlock options.
-- **Unlocks** if you want them: watch N more, or N minutes, after a short wait, a few times a day. Strict mode removes them.
+- **Instagram Home** can be left alone, blocked, or blocked with the **Stories row still tappable** above the cover.
+- **Unlocks** if you want them: you choose whether each one gives you N more videos, N minutes, or a pick each time, after a short wait, a few times a day.
+- **Settings lock**: picked during setup (1 to 5 minutes). Making Quiet less strict means waiting that long first; then settings stay open for 5 minutes. Tightening is always instant.
 - **Focus**: schedules (they can cross midnight), one-tap sessions, and a Quick Settings tile.
 - **Tracking**: daily time in every social app, endless-feed vs shared-video time, hourly heat strip, streaks, and daily limits for any app.
 
-Everything stays on the phone.
+Everything stays on the phone. See the [privacy policy](docs/privacy-policy.md).
 
 ## Install
 
@@ -30,14 +32,16 @@ Each supported app has a rules file in [`core/src/main/resources/rules`](core/sr
 - **surfaces**: what the user configures (`VIDEO_FEED`, `VIDEO_VIEWER`, `FEED`, `EXPLORE`, `STORIES`, `MESSAGES`, …).
 - **nav**: tabs the block screen and auto-skip can jump to.
 
-To fix rules on a phone without rebuilding, push an edited copy and reload:
+- **keep** (optional, per surface): a signal for part of the screen that stays usable when the surface is covered, like Instagram's Stories row. The cover starts below it.
+
+To fix rules on a phone without rebuilding (debug builds only), push an edited copy and reload:
 
 ```sh
 adb push instagram.json /sdcard/Android/data/app.quiet/files/rules/instagram.json
 adb shell am broadcast -a app.quiet.DEBUG --es cmd reload -p app.quiet
 ```
 
-Other debug commands (`-p app.quiet` is required):
+Other debug commands (debug builds only; `-p app.quiet` is required):
 
 | cmd | does |
 |-----|------|
@@ -46,12 +50,14 @@ Other debug commands (`-p app.quiet` is required):
 | `state` | logs what the service sees (`adb logcat -s Quiet`) |
 | `relock` | ends any unlock for the app in front |
 
-The in-app **Inspector** (Settings → Diagnostics) shows the same live readout.
+The in-app **Inspector** (Settings → Advanced) shows the same live readout.
 
 ## Develop
 
-- JDK 21, Android SDK 35
+- JDK 21, Android SDK 36
 - `./gradlew :core:test` runs the engine tests (pure JVM, fast)
 - `./gradlew :app:assembleDebug` builds the APK
+
+- `./gradlew :app:bundleRelease` builds the Play bundle (see [releasing](docs/releasing.md))
 
 `core` holds all the decision logic (detector, engine, settings, stats) with no Android dependency; `app` is the accessibility service, overlays and Compose UI.
