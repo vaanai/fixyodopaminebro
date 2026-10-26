@@ -1,6 +1,6 @@
 # Quiet privacy policy
 
-_Last updated: 25 October 2026_
+_Last updated: 26 October 2026_
 
 Quiet is an Android app that blocks endless short-video feeds (Instagram Reels, TikTok For You, YouTube Shorts) and counts the time you spend in social apps. It works entirely on your phone. There is no Quiet account and no Quiet server.
 
@@ -27,7 +27,7 @@ On your phone only, in Quiet's private app storage:
 - daily totals: time per app, time in video feeds, number of blocks and unlocks;
 - a short activity log ("Blocked a feed", "Unlocked for 5 min") with times.
 
-Screen content read through the Accessibility service is used in the moment and then discarded. Quiet never saves messages, captions, comments, or anything you type. The optional screen dump in **Settings → Advanced → Inspector** saves the layout of one screen to your phone when you tap it, for fixing detection; it stays on your phone unless you choose to share it.
+Screen content read through the Accessibility service is used in the moment and then discarded. The version of Quiet on Google Play never saves messages, captions, comments, anything you type, or any other screen content. Test builds used for fixing detection have an extra screen dump tool that saves one screen, including its text, to the phone when you tap it; it stays on your phone unless you choose to share it.
 
 ## What Quiet shares
 

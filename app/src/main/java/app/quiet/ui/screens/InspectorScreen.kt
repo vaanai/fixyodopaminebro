@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.quiet.BuildConfig
 import app.quiet.LocalNav
 import app.quiet.QuietApp
 import app.quiet.service.LiveState
@@ -92,24 +93,27 @@ fun InspectorScreen() {
             Line("Passes", e?.passes?.entries?.joinToString { "${it.key} ${((it.value - System.currentTimeMillis()) / 1000).coerceAtLeast(0)}s" }?.ifEmpty { "–" } ?: "–")
         }
 
-        SectionTitle("Screen dump")
-        QCard {
-            Text(
-                "Saves the full layout of the app in front as JSON, so its detection rules can be checked and fixed. Text from the app is included; it stays on your phone unless you share it.",
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textDim,
-            )
-            Spacer(Modifier.height(12.dp))
-            PrimaryButton(if (countdown > 0) "Switch apps now… $countdown" else "Dump in 5 seconds", enabled = countdown == 0) { countdown = 5 }
-            live.lastDump?.let { path ->
-                Spacer(Modifier.height(10.dp))
-                Text(path, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), color = c.textFaint)
-                Spacer(Modifier.height(8.dp))
-                SecondaryButton("Share last dump") {
-                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", File(path))
-                    val send = Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, uri)
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    context.startActivity(Intent.createChooser(send, "Share dump").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        // Dumps save text from other apps, so only debug builds offer them (see Store.dumpsDir).
+        if (BuildConfig.DEBUG) {
+            SectionTitle("Screen dump")
+            QCard {
+                Text(
+                    "Saves the full layout of the app in front as JSON, so its detection rules can be checked and fixed. Text from the app is included; it stays on your phone unless you share it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textDim,
+                )
+                Spacer(Modifier.height(12.dp))
+                PrimaryButton(if (countdown > 0) "Switch apps now… $countdown" else "Dump in 5 seconds", enabled = countdown == 0) { countdown = 5 }
+                live.lastDump?.let { path ->
+                    Spacer(Modifier.height(10.dp))
+                    Text(path, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), color = c.textFaint)
+                    Spacer(Modifier.height(8.dp))
+                    SecondaryButton("Share last dump") {
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", File(path))
+                        val send = Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, uri)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        context.startActivity(Intent.createChooser(send, "Share dump").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
                 }
             }
         }
