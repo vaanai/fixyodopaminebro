@@ -82,7 +82,7 @@ fun summary(rules: AppRules, s: Settings): String {
     val blocked = rules.surfaces.filter { it.kind != SurfaceKind.MESSAGES && it.kind != SurfaceKind.VIDEO_VIEWER }
         .filter { s.modeFor(rules.app, it.id) != Mode.ALLOW }
         .joinToString { surface ->
-            val top = surface.openTop?.takeIf { t -> t.surface == null || s.modeFor(rules.app, t.surface) != Mode.BLOCK }
+            val top = surface.openTop?.takeIf { t -> t.surface.let { to -> to == null || s.modeFor(rules.app, to) != Mode.BLOCK } }
             val kept = top?.let { " past ${it.name}" }.orEmpty()
             "${surface.label} ${s.modeFor(rules.app, surface.id).done}$kept"
         }
