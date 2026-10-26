@@ -3,7 +3,7 @@
   "app": "instagram",
   "displayName": "Instagram",
   "packages": ["com.instagram.android"],
-  "version": 3,
+  "version": 4,
   "verified": true,
   "tabBarSignal": "tabBar",
   "pagerSignal": "reelPager",
@@ -54,7 +54,7 @@
     "storiesTray": [
       { "idExact": "reels_tray_container", "maxBottomFraction": 0.6, "note": "The Stories row at the top of Home" },
       { "id": "stories_tray", "maxBottomFraction": 0.6 },
-      { "descContains": "'s story", "maxBottomFraction": 0.5, "note": "A story bubble: 'name's story at column 2. Unseen.'" },
+      { "descContains": "story at column", "maxBottomFraction": 0.5, "note": "A bubble in the row: 'name's story at column 2. Unseen.' Posts' story rings don't say 'at column'." },
       { "descStartsWith": "Your story", "maxBottomFraction": 0.5 }
     ],
     "dmComposer": [
@@ -97,7 +97,7 @@
     { "id": "reel_viewer", "label": "Single reels", "kind": "VIDEO_VIEWER", "description": "A reel opened from a chat, a profile, your feed or Explore." },
     {
       "id": "home", "label": "Home feed", "kind": "FEED", "description": "Posts from people you follow, plus suggestions.",
-      "keep": { "signal": "storiesTray", "name": "Stories", "description": "The Stories row at the top stays tappable. Only the posts below it are covered." }
+      "openTop": { "signal": "storiesTray", "name": "Stories", "surface": "stories", "back": "home", "description": "The top of Home, with the Stories row, stays open. Scrolling down past it is blocked." }
     },
     { "id": "explore", "label": "Search & Explore", "kind": "EXPLORE", "description": "The Explore grid and search." },
     { "id": "stories", "label": "Stories", "kind": "STORIES", "description": "Stories from people you follow." },

@@ -421,7 +421,6 @@ private fun LockPage() {
             Bullet("More unlocks, bigger ones, a shorter wait to unlock, or a new kind of unlock")
             Bullet("A bigger daily allowance, or a looser daily app limit")
             Bullet("Ending focus early, or deleting a focus time")
-            Bullet("Showing more of a blocked feed, like keeping Stories visible")
         }
     }
 }

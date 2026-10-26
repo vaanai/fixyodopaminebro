@@ -37,7 +37,7 @@ class SettingsAndStatsTest {
             disclosureAccepted = true,
             onboarded = true,
             linksPlay = false,
-        ).withApp("instagram") { it.copy(keepVisible = emptySet()) }
+        ).withApp("instagram") { it.copy(autoSkipTarget = null) }
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
     }
 
@@ -63,8 +63,13 @@ class SettingsAndStatsTest {
         assertEquals(false, SettingsCodec.decode("{}").disclosureAccepted)
     }
 
-    @Test fun `blocking home keeps stories by default`() {
-        assertEquals(true, Settings().keepsVisible("instagram", "home"))
+    @Test fun `old "block all of home" becomes blocking stories too`() {
+        val all = SettingsCodec.decode("""{"apps": {"instagram": {"modes": {"home": "BLOCK"}, "keepVisible": []}}}""")
+        assertEquals(Mode.BLOCK, all.modeFor("instagram", "stories"))
+        val kept = SettingsCodec.decode("""{"apps": {"instagram": {"modes": {"home": "BLOCK"}, "keepVisible": ["home"]}}}""")
+        assertEquals(Mode.ALLOW, kept.modeFor("instagram", "stories"))
+        val open = SettingsCodec.decode("""{"apps": {"instagram": {"modes": {"home": "ALLOW"}, "keepVisible": []}}}""")
+        assertEquals(Mode.ALLOW, open.modeFor("instagram", "stories"))
     }
 
     @Test fun `garbage settings fall back to defaults`() {

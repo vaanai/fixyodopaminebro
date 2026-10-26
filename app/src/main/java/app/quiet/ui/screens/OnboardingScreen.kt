@@ -272,23 +272,20 @@ private fun Tune() {
 
     if (rules.apps["instagram"] != null && s.app("instagram").enabled) {
         val home = s.modeFor("instagram", "home")
-        val keep = s.keepsVisible("instagram", "home")
-        fun setHome(mode: Mode, keepStories: Boolean) = edit { st ->
-            st.withApp("instagram") {
-                it.copy(
-                    modes = it.modes + ("home" to mode),
-                    keepVisible = if (keepStories) it.keepVisible + "home" else it.keepVisible - "home",
-                )
-            }
+        val stories = s.modeFor("instagram", "stories")
+        fun setHome(homeMode: Mode, storiesMode: Mode) = edit { st ->
+            st.withApp("instagram") { it.copy(modes = it.modes + ("home" to homeMode) + ("stories" to storiesMode)) }
         }
         SectionTitle("Instagram home feed")
         QCard {
-            ChoiceRow("Leave it open", "Posts from people you follow, plus suggestions.", home == Mode.ALLOW) { setHome(Mode.ALLOW, keep) }
-            ChoiceRow("Block the feed, keep Stories", "The Stories row stays tappable. The posts below are covered.", home == Mode.BLOCK && keep) {
-                setHome(Mode.BLOCK, true)
+            ChoiceRow("Leave it open", "Posts from people you follow, plus suggestions.", home == Mode.ALLOW) {
+                setHome(Mode.ALLOW, if (stories == Mode.BLOCK) Mode.ALLOW else stories)
             }
-            ChoiceRow("Block all of it", "Home is covered. Messages and profiles still work.", home == Mode.BLOCK && !keep) {
-                setHome(Mode.BLOCK, false)
+            ChoiceRow("Block it, keep Stories", "The top of Home and Stories stay open. Scrolling down past them is blocked.", home == Mode.BLOCK && stories != Mode.BLOCK) {
+                setHome(Mode.BLOCK, if (stories == Mode.BLOCK) Mode.ALLOW else stories)
+            }
+            ChoiceRow("Block it all, Stories too", "Home and Stories are covered. Messages and profiles still work.", home == Mode.BLOCK && stories == Mode.BLOCK) {
+                setHome(Mode.BLOCK, Mode.BLOCK)
             }
             if (home == Mode.LIMIT || home == Mode.PAUSE) {
                 Note("Home is set to ${home.label}. You can change that under Apps later.")

@@ -45,7 +45,6 @@ object Strictness {
             val b = new.app(id)
             if (a.enabled && !b.enabled) return true
             if (limit(b.dailyLimitMinutes) > limit(a.dailyLimitMinutes)) return true
-            if (b.keepVisible.any { it !in a.keepVisible }) return true
             for (surface in a.modes.keys + b.modes.keys) {
                 if (severity(new.modeFor(id, surface)) < severity(old.modeFor(id, surface))) return true
             }

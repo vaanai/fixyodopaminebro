@@ -20,7 +20,7 @@ class StrictnessTest {
         assertFalse(Strictness.isLoosening(base, base.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.PAUSE)) }))
         assertFalse(Strictness.isLoosening(base, base.copy(lockSeconds = 120)))
         assertFalse(Strictness.isLoosening(base.copy(unlockKind = UnlockKind.CHOOSE), base.copy(unlockKind = UnlockKind.VIDEOS)))
-        assertFalse(Strictness.isLoosening(base, base.withApp("instagram") { it.copy(keepVisible = emptySet()) }))
+        assertFalse(Strictness.isLoosening(base, base.withApp("instagram") { it.copy(modes = it.modes + ("stories" to Mode.BLOCK)) }))
         // Bigger "watch N more" unlocks don't matter while unlocks give minutes.
         val minutes = base.copy(unlockKind = UnlockKind.MINUTES)
         assertFalse(Strictness.isLoosening(minutes, minutes.copy(unlockVideos = 20)))
@@ -42,8 +42,8 @@ class StrictnessTest {
         assertTrue(Strictness.isLoosening(base, base.copy(unlockKind = UnlockKind.CHOOSE)))
         assertTrue(Strictness.isLoosening(base, base.copy(unlockVideos = 10)))
         assertTrue(Strictness.isLoosening(base, base.copy(unlockMinutes = 10)))
-        val noKeep = base.withApp("instagram") { it.copy(keepVisible = emptySet()) }
-        assertTrue(Strictness.isLoosening(noKeep, noKeep.withApp("instagram") { it.copy(keepVisible = setOf("home")) }))
+        val noStories = base.withApp("instagram") { it.copy(modes = it.modes + ("stories" to Mode.BLOCK)) }
+        assertTrue(Strictness.isLoosening(noStories, base))
         val limited = base.withApp("instagram") { it.copy(dailyLimitMinutes = 30) }
         assertTrue(Strictness.isLoosening(limited, limited.withApp("instagram") { it.copy(dailyLimitMinutes = 0) }))
     }

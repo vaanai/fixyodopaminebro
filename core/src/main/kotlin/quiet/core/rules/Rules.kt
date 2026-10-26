@@ -107,13 +107,18 @@ data class SurfaceRule(
 )
 
 /**
- * Part of a surface that can stay usable while the rest is covered, like the Stories row above
- * Instagram's Home feed. The cover starts below the lowest node matching [signal].
+ * The top of a feed that stays open when the feed is blocked, like the Stories row above Instagram's
+ * Home posts. While [signal] is on screen you're at the top and nothing is covered; scroll past it and
+ * the block starts. The top only stays open while [surface] (where it leads) isn't blocked itself.
  */
-data class KeepArea(
+data class OpenTop(
     val signal: String,
-    /** What's kept, as the user calls it: "Stories". */
+    /** What's up there, as the user calls it: "Stories". */
     val name: String,
+    /** The surface the top area leads to, like the story viewer. Blocking it closes the top too. */
+    val surface: String? = null,
+    /** Nav target that takes you back to the top (tapping Home again scrolls Instagram's feed up). */
+    val back: String? = null,
     val description: String = "",
 )
 
@@ -123,7 +128,7 @@ data class SurfaceInfo(
     val label: String,
     val kind: SurfaceKind,
     val description: String = "",
-    val keep: KeepArea? = null,
+    val openTop: OpenTop? = null,
 )
 
 /**

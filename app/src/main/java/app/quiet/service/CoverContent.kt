@@ -70,7 +70,7 @@ private fun copyFor(c: Cover): CoverCopy = when (c.reason) {
     CoverReason.BLOCKED -> CoverCopy(
         Icons.Rounded.Block,
         "${c.surfaceLabel} is off",
-        if (c.keptName != null) "${c.keptName} are still up there. Messages and profiles work too."
+        if (c.pastTop != null) "${c.pastTop} are still open at the top. Scrolling on down is the endless part."
         else "Messages, profiles and the people you follow are still here. The endless part isn't.",
     )
     CoverReason.BUDGET_DONE -> CoverCopy(
@@ -109,8 +109,6 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
     val c = Q.colors
     val cover = model.cover
     val copy = copyFor(cover)
-    // Under a kept area (the Stories row) there's no status bar to clear, and less room.
-    val compact = cover.topPx != null
     Box(
         Modifier
             .fillMaxSize()
@@ -131,7 +129,7 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 28.dp)
-                    .padding(top = if (compact) 24.dp else 72.dp, bottom = 28.dp),
+                    .padding(top = 72.dp, bottom = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -139,13 +137,13 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     BreathRing(cover.pauseSeconds)
                 } else {
                     Box(
-                        Modifier.size(if (compact) 56.dp else 72.dp).clip(CircleShape).background(c.accentDim),
+                        Modifier.size(72.dp).clip(CircleShape).background(c.accentDim),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(copy.icon, null, tint = c.accent, modifier = Modifier.size(if (compact) 26.dp else 34.dp))
+                        Icon(copy.icon, null, tint = c.accent, modifier = Modifier.size(34.dp))
                     }
                 }
-                Spacer(Modifier.height(if (compact) 18.dp else 28.dp))
+                Spacer(Modifier.height(28.dp))
                 Text(
                     copy.title,
                     style = MaterialTheme.typography.headlineLarge,
@@ -164,7 +162,7 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     Spacer(Modifier.height(16.dp))
                     Text(it, style = MaterialTheme.typography.labelMedium, color = c.accent, textAlign = TextAlign.Center)
                 }
-                Spacer(Modifier.height(if (compact) 24.dp else 36.dp))
+                Spacer(Modifier.height(36.dp))
                 Buttons(cover, actions)
             }
         }
@@ -198,12 +196,17 @@ private fun Buttons(cover: Cover, actions: CoverActions) {
                 CoverButton("Go back", primary = true, icon = Icons.AutoMirrored.Rounded.ArrowBack) { actions.onBack(cover) }
             }
             else -> {
-                // No "Go to Home feed" while you're on the Home feed.
-                val targets = cover.navTargets.filter { it.id != cover.surface }.take(2)
-                targets.forEachIndexed { i, t ->
-                    CoverButton("Go to ${t.label}", primary = i == 0) { actions.onNav(cover, t.id) }
+                // Scrolled past the open top (Stories): the first way out is back up to it.
+                val back = cover.backToTop
+                if (back != null) {
+                    CoverButton("Back up to ${cover.pastTop}", primary = true) { actions.onNav(cover, back) }
                 }
-                if (targets.isEmpty()) CoverButton("Go back", primary = true) { actions.onBack(cover) }
+                // No "Go to Home feed" while you're on the Home feed.
+                val targets = cover.navTargets.filter { it.id != cover.surface && it.id != back }.take(if (back != null) 1 else 2)
+                targets.forEachIndexed { i, t ->
+                    CoverButton("Go to ${t.label}", primary = i == 0 && back == null) { actions.onNav(cover, t.id) }
+                }
+                if (targets.isEmpty() && back == null) CoverButton("Go back", primary = true) { actions.onBack(cover) }
             }
         }
         if (cover.reason != CoverReason.PAUSE) {

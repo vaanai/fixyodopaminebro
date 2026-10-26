@@ -75,10 +75,10 @@ data class Cover(
     val origin: Origin? = null,
     val allowedSwipes: Int = 0,
     val unlockKind: UnlockKind = UnlockKind.MINUTES,
-    /** The cover starts at this y, leaving what's above it usable (like the Stories row), or at the top when null. */
-    val topPx: Int? = null,
-    /** What stays visible above the cover ("Stories"), when [topPx] is set. */
-    val keptName: String? = null,
+    /** You scrolled past this surface's open top ("Stories"); null when the surface has none open. */
+    val pastTop: String? = null,
+    /** Nav target that takes you back up to the open top. */
+    val backToTop: String? = null,
     /** Swiped on from a video a link opened: going back means back to the app the link came from. */
     val fromLink: Boolean = false,
 ) {
@@ -268,11 +268,15 @@ class Engine {
         val unlockedUntil = passes[appId]?.takeIf { it > now } ?: videoPass?.until
         val unlocksLeft = (s.unlocksPerDay - input.today.unlocks).coerceAtLeast(0)
         val label = rules.surface(surface)?.label ?: surface
+        // A feed's open top stays open only while what it leads to (Stories) isn't blocked too.
+        val openTop = rules.surface(surface)?.openTop?.takeIf { t ->
+            val to = t.surface ?: return@takeIf true
+            val toMode = s.modeFor(appId, to)
+            toMode != Mode.BLOCK && !(focus && toMode != Mode.ALLOW)
+        }
 
         fun cover(reason: CoverReason, offerBack: Boolean = false, fullScreen: Boolean = false): Cover {
             val canUnlock = reason != CoverReason.PAUSE && s.canUnlock(focus) && unlocksLeft > 0
-            val keep = rules.surface(surface)?.keep
-            val top = input.reading.keepBottom?.takeIf { !fullScreen && keep != null && s.keepsVisible(appId, surface) }
             return Cover(
                 reason = reason,
                 app = appId,
@@ -292,8 +296,8 @@ class Engine {
                 origin = session?.origin,
                 allowedSwipes = session?.let { s.viewerSwipesFor(appId, it.origin) } ?: 0,
                 unlockKind = s.unlockKind,
-                topPx = top,
-                keptName = keep?.name?.takeIf { top != null },
+                pastTop = openTop?.name?.takeIf { !fullScreen },
+                backToTop = openTop?.back?.takeIf { !fullScreen },
             )
         }
 
@@ -344,6 +348,9 @@ class Engine {
         if (unlockedUntil != null && mode != Mode.ALLOW) {
             return base.copy(pill = passPill(unlockedUntil, "Unlocked"))
         }
+
+        // The top of the feed (Instagram's Stories row) stays open; scrolling past it is what's blocked.
+        if (openTop != null && input.reading.atTop && mode != Mode.ALLOW) return base
 
         return when (mode) {
             Mode.ALLOW -> base

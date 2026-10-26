@@ -109,22 +109,8 @@ class Overlays(private val service: AccessibilityService, private val actions: C
         coverState.value = null
     }
 
-    /** Covers start at the top, or below a kept area like the Stories row, and stop at the tab bar or the screen's bottom. */
-    private fun frameFor(cover: Cover): Frame {
-        val top = cover.topPx?.takeIf { it > 0 } ?: return Frame(0, cover.bottomPx)
-        val bottom = cover.bottomPx ?: screenHeight()
-        val minHeight = (service.resources.displayMetrics.density * MIN_COVER_DP).toInt()
-        // Too little room under the kept area: cover it all rather than squeeze the block screen.
-        if (bottom - top < minHeight) return Frame(0, cover.bottomPx)
-        return Frame(top, bottom - top)
-    }
-
-    @Suppress("DEPRECATION")
-    private fun screenHeight(): Int = if (android.os.Build.VERSION.SDK_INT >= 30) {
-        wm.maximumWindowMetrics.bounds.height()
-    } else {
-        android.util.DisplayMetrics().also { wm.defaultDisplay.getRealMetrics(it) }.heightPixels
-    }
+    /** Covers start at the top and stop at the tab bar or the screen's bottom. */
+    private fun frameFor(cover: Cover): Frame = Frame(0, cover.bottomPx)
 
     fun showPill(model: PillModel?) {
         if (model == null) {
@@ -219,9 +205,5 @@ class Overlays(private val service: AccessibilityService, private val actions: C
             wm.removeViewImmediate(view)
         } catch (_: Exception) {
         }
-    }
-
-    private companion object {
-        const val MIN_COVER_DP = 320
     }
 }

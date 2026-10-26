@@ -68,8 +68,6 @@ data class AppSettings(
     val dailyLimitMinutes: Int = 0,
     /** Nav target to jump to when you land on a blocked feed, or null to just cover it. */
     val autoSkipTarget: String? = null,
-    /** Surfaces whose keep area (the rules' `keep`, e.g. Instagram's Stories row) stays uncovered when blocked. */
-    val keepVisible: Set<String> = emptySet(),
 )
 
 data class FocusWindow(
@@ -166,9 +164,6 @@ data class Settings(
 
     fun canUnlock(focusActive: Boolean): Boolean =
         unlocksEnabled && (!focusActive || focusAllowsUnlocks)
-
-    /** Whether the rules' keep area for [surface] (e.g. the Stories row on Home) stays visible when it's covered. */
-    fun keepsVisible(app: String, surface: String): Boolean = surface in app(app).keepVisible
 }
 
 object Defaults {
@@ -209,8 +204,6 @@ object Defaults {
             ),
             viewerSwipes = friendlyViewer,
             autoSkipTarget = "messages",
-            // Blocking Home keeps the Stories row unless you turn that off.
-            keepVisible = setOf("home"),
         )
         "tiktok" -> AppSettings(
             enabled = true,

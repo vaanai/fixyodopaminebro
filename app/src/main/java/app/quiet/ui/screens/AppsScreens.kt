@@ -75,14 +75,15 @@ private val Mode.done: String
         Mode.BLOCK -> "blocked"
     }
 
-/** One-line summary of an app's setup: "Reels tab blocked, Home feed blocked (Stories stay)". */
+/** One-line summary of an app's setup: "Reels tab blocked, Home feed blocked past Stories". */
 fun summary(rules: AppRules, s: Settings): String {
     val a = s.app(rules.app)
     if (!a.enabled) return "Not managed. Time is still counted."
     val blocked = rules.surfaces.filter { it.kind != SurfaceKind.MESSAGES && it.kind != SurfaceKind.VIDEO_VIEWER }
         .filter { s.modeFor(rules.app, it.id) != Mode.ALLOW }
         .joinToString { surface ->
-            val kept = surface.keep?.takeIf { s.keepsVisible(rules.app, surface.id) }?.let { " (${it.name} stay)" }.orEmpty()
+            val top = surface.openTop?.takeIf { t -> t.surface == null || s.modeFor(rules.app, t.surface) != Mode.BLOCK }
+            val kept = top?.let { " past ${it.name}" }.orEmpty()
             "${surface.label} ${s.modeFor(rules.app, surface.id).done}$kept"
         }
     return blocked.ifEmpty { "Everything allowed" }
@@ -193,11 +194,16 @@ fun AppDetailScreen(appId: String) {
                 Segmented(Mode.entries, mode, { it.label }) { m -> update { it.copy(modes = it.modes + (surface.id to m)) } }
                 Spacer(Modifier.height(6.dp))
                 Text(mode.explain(settings.budgetMinutes, settings.pauseSeconds, settings.pauseMinutes), style = MaterialTheme.typography.bodySmall, color = c.textDim)
-                val keep = surface.keep
-                if (keep != null && mode != Mode.ALLOW) {
-                    SwitchRow("Keep ${keep.name} visible", surface.id in a.keepVisible, keep.description) { on ->
-                        update { it.copy(keepVisible = if (on) it.keepVisible + surface.id else it.keepVisible - surface.id) }
-                    }
+                val top = surface.openTop
+                if (top != null && mode != Mode.ALLOW) {
+                    Spacer(Modifier.height(4.dp))
+                    val topBlocked = top.surface?.let { settings.modeFor(appId, it) == Mode.BLOCK } == true
+                    Text(
+                        if (topBlocked) "${top.name} are blocked too, so all of ${surface.label} is covered."
+                        else "The top, with ${top.name}, stays open. The block starts when you scroll down past ${top.name}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textDim,
+                    )
                 }
             }
         }

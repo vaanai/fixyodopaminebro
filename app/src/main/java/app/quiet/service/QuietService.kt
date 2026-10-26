@@ -618,7 +618,7 @@ class QuietService : AccessibilityService(), CoverActions {
             put("signals", JSONArray(reading.signals.sorted()))
             put("signature", reading.signature)
             put("tabBarTop", reading.tabBarTop ?: JSONObject.NULL)
-            put("keepBottom", reading.keepBottom ?: JSONObject.NULL)
+            put("atTop", reading.atTop)
             put("nodes", nodes)
         }
         runCatching { file.writeText(json.toString(1)) }
