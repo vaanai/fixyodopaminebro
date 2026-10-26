@@ -68,6 +68,8 @@ class QuietService : AccessibilityService(), CoverActions {
     private var foregroundSince = 0L
     private var enteredFromApp = false
     private var lastApp: String? = null
+    private var lastAppSince = 0L
+    private var appBefore: String? = null
     private var cameFrom: String? = null
     private var nudgesSent = 0
     private var lastTick = 0L
@@ -353,9 +355,14 @@ class QuietService : AccessibilityService(), CoverActions {
         // Straight from another app rather than the home screen: most likely a link or a share. Moments
         // with no readable app in front (a cold start's splash) don't count as leaving.
         if (fg != lastApp) {
-            enteredFromApp = lastApp?.let { !isHome(it) } ?: false
+            // Another window flickering in front for a moment and going again isn't arriving from it.
+            val bounce = fg == appBefore && now - lastAppSince < BOUNCE_MS
+            enteredFromApp = !bounce && lastApp?.let { !isHome(it) } ?: false
             cameFrom = lastApp.takeIf { enteredFromApp }
+            if (store.settings.value.verboseLogging) Log.i(TAG, "front $fg from $lastApp link=$enteredFromApp")
+            appBefore = lastApp
             lastApp = fg
+            lastAppSince = now
         }
         val s = store.settings.value
         val tracked = store.rules.value.forPackage(fg) != null || s.tracked.any { it.packageName == fg }
@@ -673,6 +680,7 @@ class QuietService : AccessibilityService(), CoverActions {
         private const val TICK_MS = 1_000L
         private const val MAX_TICK_GAP_MS = 5_000L
         private const val EVAL_THROTTLE_MS = 250L
+        private const val BOUNCE_MS = 2_000L
         private const val EVAL_MIN_DELAY_MS = 40L
 
         @Volatile
