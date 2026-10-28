@@ -83,6 +83,13 @@ data class Cover(
     val backToTop: String? = null,
     /** Swiped on from a video a link opened: going back means back to the app the link came from. */
     val fromLink: Boolean = false,
+    /**
+     * The screen under the cover is a feed with the app's tabs, not a single video stacked on top of
+     * something: Back there would leave the app, so the way out is another tab.
+     */
+    val overFeed: Boolean = false,
+    /** Nav target that is the way off a feed (TikTok's Inbox). */
+    val safeTarget: String? = null,
 ) {
     /** The unlocks the block screen offers. */
     val unlockOffers: List<UnlockKind> get() = unlockKind.offers(appLimit = reason == CoverReason.APP_LIMIT || !videoSurface)
@@ -305,6 +312,7 @@ class Engine {
                 videoSurface = videoKind,
                 pastTop = openTop?.name?.takeIf { !fullScreen },
                 backToTop = openTop?.back?.takeIf { !fullScreen },
+                safeTarget = rules.safeTarget,
             )
         }
 
@@ -330,21 +338,42 @@ class Engine {
         // Chats and profiles are never blocked: they're where the videos friends send you come from.
         if (kind == SurfaceKind.MESSAGES || kind == SurfaceKind.PROFILE) return base
 
+        // Is a surface open right now: allowed, limited with allowance left, or past its pause? Focus
+        // closes every video feed.
+        fun isOpen(id: String): Boolean {
+            if (focus) return false
+            return when (s.modeFor(appId, id)) {
+                Mode.ALLOW -> true
+                Mode.LIMIT -> s.budgetMinutes * 60 - input.today.budgetSeconds > 0
+                Mode.PAUSE -> (passes["$appId.$id"] ?: 0L) > now
+                Mode.BLOCK -> false
+            }
+        }
+
         if (kind == SurfaceKind.VIDEO_VIEWER) {
             val sess = session ?: return base
             val allowed = s.viewerSwipesFor(appId, sess.origin)
-            if (allowed != UNLIMITED && sess.swipes > allowed && unlockedUntil == null) {
+            val beyond = allowed != UNLIMITED && sess.swipes > allowed && unlockedUntil == null
+            // Swipe allowances keep you out of the app's main feed through the back door. While that feed
+            // is open anyway, swiping on is no different from opening it: nothing to stop. (This also
+            // keeps a feed that was read as a single video from being covered when the feed is allowed.)
+            val main = rules.mainFeed
+            if (beyond && main != null && isOpen(main)) {
+                return base.copy(chargesBudget = s.modeFor(appId, main) == Mode.LIMIT)
+            }
+            if (beyond) {
                 return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true))
             }
             return base.copy(pill = unlockedUntil?.let { passPill(it, "Unlocked") })
         }
 
         // A link from another app (a TikTok texted to you) often opens inside the feed. The video it
-        // opened plays, and swiping on is limited like a video sent in a chat.
-        if (linkVisit && kind == SurfaceKind.VIDEO_FEED) {
+        // opened plays, and swiping on is limited like a video sent in a chat. A feed that's open anyway
+        // needs none of that and is handled like any other visit below.
+        if (linkVisit && kind == SurfaceKind.VIDEO_FEED && !isOpen(surface)) {
             val allowed = s.viewerSwipesFor(appId, Origin.MESSAGES)
             if (allowed != UNLIMITED && linkSwipes > allowed && unlockedUntil == null) {
-                return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true).copy(fromLink = true))
+                return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true).copy(fromLink = true, overFeed = true))
             }
             return base.copy(isFeed = false, isViewer = true, pill = unlockedUntil?.let { passPill(it, "Unlocked") })
         }

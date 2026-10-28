@@ -1,6 +1,6 @@
 # Pixel test before merging
 
-One pass on a real phone for the open Quiet changes (stories lag, Home on scroll, settings cleanup, the skip-the-wait ad, and the mode fixes). Install the `quiet-debug.apk` from the **test** release over the current app, so your settings carry over. Debug builds show Google's test ads, never real ones.
+One pass on a real phone for the open Quiet changes (stories lag, Home on scroll, settings cleanup, the skip-the-wait ad, the mode fixes, and TikTok misfires). Install the `quiet-debug.apk` from the **test** release over the current app, so your settings carry over. Debug builds show Google's test ads, never real ones.
 
 If something is off, note what you tapped and what you saw. With the phone plugged into a computer, Settings → Advanced → Verbose logging also writes what Quiet saw to logcat (tag Quiet).
 
@@ -48,6 +48,22 @@ This setting is off on your phone after the update, because turning it on counts
 - [ ] Send yourself a reel and a TikTok in WhatsApp or Messages. Tapping each plays it, and swiping on is stopped after the chat allowance.
 - [ ] Open Reels, switch to WhatsApp, then swipe back to Instagram with the gesture bar. Reels should still be covered. If it plays like a link instead, note it: that's the one case this can't check without a phone.
 
+## 6. TikTok when it's allowed, and the way out
+
+Set TikTok → For You to **Allow** (leave the rest as they are).
+
+- [ ] Scroll For You for a couple of minutes, including past any LIVE preview in the feed. Nothing is covered.
+- [ ] Go to Inbox, then tap Home. For You plays and stays open while you swipe.
+- [ ] Open another app, then swipe back to TikTok with the gesture bar. Swipe through For You: still nothing covered.
+- [ ] Open a video from a chat and swipe on. Nothing is covered (For You is open anyway).
+- [ ] Tap the LIVE icon at the top left and enter a live room. That's still covered (LIVE is blocked).
+
+Now set For You back to **Block**.
+
+- [ ] Open a video someone sent you in a TikTok chat and swipe once. The cover comes up with "Go back". One tap takes you back to the chat, not out of TikTok.
+- [ ] Tap "Go back" several times fast. It still only goes back once.
+- [ ] Send yourself a TikTok in Messages, open it, wait a few seconds and swipe. The cover offers "Go to Inbox" first, which lands in your TikTok inbox, and "Back to Messages".
+
 ## Then
 
-If everything passes, merge the pull requests in order: #12, #13, #14, #15, #16.
+If everything passes, merge the pull requests in order: #12, #13, #14, #15, #16, then the TikTok one.

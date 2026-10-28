@@ -86,6 +86,7 @@ class QuietService : AccessibilityService(), CoverActions {
     private val skippedWaits = mutableMapOf<String, Long>()
     private var receiversRegistered = false
     private var debugReceiverRegistered = false
+    private var lastCoverTapAt = 0L
 
     private val evalRunnable = Runnable { evaluateSafely() }
     private val tickRunnable = object : Runnable {
@@ -235,7 +236,7 @@ class QuietService : AccessibilityService(), CoverActions {
 
         val root = findRoot(fg)
         val (w, h) = screenSize()
-        val result = root?.let { reader.read(it, fg, w, h) }
+        val result = root?.let { reader.read(it, fg, w, h, rules.tabWords) }
         val reading = result?.let { Detector.read(rules, it.tree) } ?: Reading.unknown(rules.app)
         val scroll = lastScroll?.takeIf { lastScrollPkg == fg }
         val decision = engine.evaluate(
@@ -278,6 +279,7 @@ class QuietService : AccessibilityService(), CoverActions {
                     todayLine(),
                     adSkip = s.adSkipsWait,
                     waitSkipped = (skippedWaits[cover.app] ?: 0L) > now,
+                    returnTo = cameFrom?.takeIf { cover.fromLink }?.let { appLabel(it) },
                 ),
             )
             if (s.pauseVideo) media.engage()
@@ -429,13 +431,25 @@ class QuietService : AccessibilityService(), CoverActions {
 
     // ---- cover buttons ----
 
+    /**
+     * One tap, one action. A tap that seems to do nothing gets tapped again, and a second Back on top of
+     * the first leaves the app.
+     */
+    private fun tapTaken(): Boolean {
+        val t = SystemClock.uptimeMillis()
+        if (t - lastCoverTapAt < COVER_TAP_GAP_MS) return false
+        lastCoverTapAt = t
+        return true
+    }
+
     override fun onNav(cover: Cover, target: String) {
+        if (!tapTaken()) return
         val rules = lastRules
         val fg = foreground
         val clicked = if (rules != null && fg != null) {
             findRoot(fg)?.let { root ->
                 val (w, h) = screenSize()
-                clickNav(rules, reader.read(root, fg, w, h), target)
+                clickNav(rules, reader.read(root, fg, w, h, rules.tabWords), target)
             } ?: false
         } else {
             false
@@ -449,11 +463,33 @@ class QuietService : AccessibilityService(), CoverActions {
     }
 
     override fun onBack(cover: Cover) {
+        if (!tapTaken()) return
         // Inside an app a link opened, Back often has nowhere to go: return to the app the link came from.
         val launch = cameFrom?.takeIf { cover.fromLink }?.let { packageManager.getLaunchIntentForPackage(it) }
         val returned = launch != null && runCatching { startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
-        if (!returned) performGlobalAction(GLOBAL_ACTION_BACK)
+        if (!returned) {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            main.postDelayed({ afterBack(cover) }, BACK_CHECK_MS)
+        }
         main.postDelayed({ scheduleEval() }, 350)
+    }
+
+    /**
+     * Back normally closes the video and lands where it was opened from (the chat). If the same cover is
+     * still up, Back had nothing to close: the screen was a feed, where another Back would leave the app.
+     * Take the way off the feed instead (TikTok's Inbox).
+     */
+    private fun afterBack(cover: Cover) {
+        val still = lastDecision.takeIf { !it.held }?.cover ?: return
+        if (still.app != cover.app || still.reason != cover.reason) return
+        val rules = lastRules?.takeIf { it.app == cover.app } ?: return
+        val target = rules.safeTarget ?: return
+        val fg = foreground ?: return
+        val root = findRoot(fg) ?: return
+        val (w, h) = screenSize()
+        val ok = clickNav(rules, reader.read(root, fg, w, h, rules.tabWords), target)
+        Log.i(TAG, "back left ${cover.app} covered; ${rules.navTarget(target)?.label ?: target}: ${if (ok) "clicked" else "not found"}")
+        if (ok) main.postDelayed({ scheduleEval() }, 350)
     }
 
     override fun onLeave(cover: Cover) {
@@ -602,6 +638,10 @@ class QuietService : AccessibilityService(), CoverActions {
 
     private fun isLocked(): Boolean = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
 
+    private fun appLabel(pkg: String): String? = runCatching {
+        packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+    }.getOrNull()?.takeIf { it.isNotBlank() }
+
     private fun labelFor(pkg: String): String =
         store.rules.value.forPackage(pkg)?.displayName
             ?: store.settings.value.tracked.firstOrNull { it.packageName == pkg }?.label
@@ -732,6 +772,9 @@ class QuietService : AccessibilityService(), CoverActions {
         private const val BOUNCE_MS = 2_000L
         private const val EVAL_MIN_DELAY_MS = 40L
         private const val HELD_RECHECK_MS = 120L
+        private const val COVER_TAP_GAP_MS = 800L
+        /** Long enough for Back to close a video and the screen under it to be read. */
+        private const val BACK_CHECK_MS = 900L
         /** How long a wait skipped with an ad stays skipped if no unlock is picked. */
         private const val SKIPPED_WAIT_KEEP_MS = 10 * 60_000L
 

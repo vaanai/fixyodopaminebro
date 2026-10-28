@@ -57,6 +57,8 @@ data class CoverModel(
     val adSkip: Boolean = false,
     /** An ad was just watched for this app: no wait, go straight to the unlock choices. */
     val waitSkipped: Boolean = false,
+    /** Name of the app a link came from, for "Back to Messages". */
+    val returnTo: String? = null,
 )
 
 data class PillModel(val text: String, val urgent: Boolean, val accent: Accent)

@@ -24,6 +24,11 @@ data class UiNode(
     val top: Int = 0,
     val right: Int = 0,
     val bottom: Int = 0,
+    /**
+     * Added after a read was cut short, by looking the app's tabs up by label rather than walking to them.
+     * Such nodes say which tab is open; they aren't part of what the video fingerprint is built from.
+     */
+    val extra: Boolean = false,
 ) {
     val width: Int get() = (right - left).coerceAtLeast(0)
     val height: Int get() = (bottom - top).coerceAtLeast(0)

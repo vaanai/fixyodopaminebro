@@ -75,9 +75,9 @@ object Detector {
      */
     fun signature(tree: UiTree, signatureIds: List<String>): String {
         val preferred = if (signatureIds.isEmpty()) emptyList() else tree.nodes.filter { n ->
-            tree.isOnScreen(n) && signatureIds.any { sid -> n.id?.contains(sid, ignoreCase = true) == true }
+            !n.extra && tree.isOnScreen(n) && signatureIds.any { sid -> n.id?.contains(sid, ignoreCase = true) == true }
         }
-        val pool: List<UiNode> = preferred.ifEmpty { tree.nodes.filter { tree.isOnScreen(it) } }
+        val pool: List<UiNode> = preferred.ifEmpty { tree.nodes.filter { !it.extra && tree.isOnScreen(it) } }
         val parts = pool.asSequence()
             .flatMap { it.labels().asSequence() }
             .map { it.trim().take(80).replace(NUMBERS, "#") }

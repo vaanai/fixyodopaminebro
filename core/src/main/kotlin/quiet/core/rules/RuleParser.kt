@@ -116,6 +116,7 @@ object RuleParser {
             signatureIds = root.optJSONArray("signatureIds").strings(),
             autoSkipTarget = autoSkip,
             launch = launch,
+            findTabsWhenCut = root.optBoolean("findTabsWhenCut", false),
         )
     }
 

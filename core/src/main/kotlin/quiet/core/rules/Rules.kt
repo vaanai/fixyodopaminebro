@@ -160,7 +160,37 @@ data class AppRules(
     /** Where to go when the user lands on a blocked feed and auto-skip is on. */
     val autoSkipTarget: String?,
     val launch: LaunchGuess? = null,
+    /**
+     * When a read is cut short (a busy screen can't be walked in time), look the tabs up by their labels so
+     * the read still knows which tab is open. Without the tabs, a feed cut short reads as a single video.
+     */
+    val findTabsWhenCut: Boolean = false,
 ) {
     fun surface(id: String): SurfaceInfo? = surfaces.firstOrNull { it.id == id }
     fun navTarget(id: String): NavTarget? = nav.firstOrNull { it.id == id }
+
+    /** The app's main algorithmic feed: the surface it opens on, or else its first video feed. */
+    val mainFeed: String? get() = launch?.surface ?: surfaces.firstOrNull { it.kind == SurfaceKind.VIDEO_FEED }?.id
+
+    /** The way off a feed: the auto-skip target (TikTok's Inbox, Instagram's chats), or else a chat tab. */
+    val safeTarget: String?
+        get() = autoSkipTarget ?: nav.firstOrNull { n -> surface(n.id)?.kind == SurfaceKind.MESSAGES }?.id
+
+    /**
+     * The labels to look for when [findTabsWhenCut] is on: the literal text of every matcher pinned to the top
+     * or bottom of the screen (the app's tabs), longest first so "For You" is tried before "You".
+     */
+    val tabWords: List<String> by lazy {
+        if (!findTabsWhenCut) return@lazy emptyList()
+        signals.values.asSequence()
+            .flatMap { it.anyOf.asSequence() }
+            .filter { it.minTopFraction != null || it.maxBottomFraction != null }
+            .flatMap { m -> sequenceOf(m.text, m.desc, m.textStartsWith, m.descStartsWith, m.textContains, m.descContains) }
+            .filterNotNull()
+            .map { it.trim() }
+            .filter { it.length >= 3 }
+            .distinctBy { it.lowercase() }
+            .sortedByDescending { it.length }
+            .toList()
+    }
 }

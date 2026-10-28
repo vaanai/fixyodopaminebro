@@ -193,7 +193,17 @@ private fun Buttons(model: CoverModel, actions: CoverActions) {
                 CoverButton("Not now", primary = true) { actions.onLeave(cover) }
             }
             CoverReason.SWIPE_LIMIT -> {
-                CoverButton("Go back", primary = true, icon = Icons.AutoMirrored.Rounded.ArrowBack) { actions.onBack(cover) }
+                // Over a feed, Back would leave the app: the way out is a tab (TikTok's Inbox).
+                val way = cover.navTargets.firstOrNull { it.id == cover.safeTarget }?.takeIf { cover.overFeed }
+                if (way != null) {
+                    CoverButton("Go to ${way.label}", primary = true) { actions.onNav(cover, way.id) }
+                    if (cover.fromLink) {
+                        val label = model.returnTo?.let { "Back to $it" } ?: "Back to where the link came from"
+                        CoverButton(label, primary = false, icon = Icons.AutoMirrored.Rounded.ArrowBack) { actions.onBack(cover) }
+                    }
+                } else {
+                    CoverButton("Go back", primary = true, icon = Icons.AutoMirrored.Rounded.ArrowBack) { actions.onBack(cover) }
+                }
             }
             else -> {
                 // Scrolled past the open top (Stories): the first way out is back up to it.
