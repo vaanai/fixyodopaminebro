@@ -232,8 +232,18 @@ object Defaults {
         else -> AppSettings(enabled = true)
     }
 
-    /** Ready-made starting points offered during onboarding. */
-    fun preset(name: Preset, base: Settings = Settings()): Settings = when (name) {
+    /**
+     * Ready-made starting points offered during onboarding and in Settings. Feed modes, unlocks and the
+     * allowance come from the preset; daily app limits and apps the preset doesn't cover stay as they were.
+     */
+    fun preset(name: Preset, base: Settings = Settings()): Settings {
+        val picked = presetOnly(name, base)
+        val apps = base.apps.toMutableMap()
+        for ((id, a) in picked.apps) apps[id] = a.copy(dailyLimitMinutes = base.apps[id]?.dailyLimitMinutes ?: a.dailyLimitMinutes)
+        return picked.copy(apps = apps)
+    }
+
+    private fun presetOnly(name: Preset, base: Settings): Settings = when (name) {
         Preset.GENTLE -> base.copy(
             apps = mapOf(
                 "instagram" to appSettings("instagram").copy(modes = appSettings("instagram").modes + ("reels" to Mode.LIMIT)),

@@ -64,6 +64,17 @@ Now set For You back to **Block**.
 - [ ] Tap "Go back" several times fast. It still only goes back once.
 - [ ] Send yourself a TikTok in Messages, open it, wait a few seconds and swipe. The cover offers "Go to Inbox" first, which lands in your TikTok inbox, and "Back to Messages".
 
+## 7. Profiles, the unlock wait and other rough edges
+
+- [ ] On Instagram Home, tap a friend's name to open their profile. No cover, and you can scroll their grid and open their posts feed.
+- [ ] Do the same from Search: their profile opens with no cover. Home itself and Explore are still covered when you scroll them.
+- [ ] Open Reels and tap "I want…". Leave Instagram mid-wait, come back: the countdown carries on where it was instead of starting over.
+- [ ] Mid-wait, tap "Skip the wait with 1 short ad", then back out of the ad screen without watching. The wait is still counting down.
+- [ ] Unlock from the Today screen. The card for that unlock shows straight away, and "Lock now" takes it away straight away.
+- [ ] Set Explore to **Pause**. Open Explore, tap "Not now". You land on another Instagram tab, not your phone's home screen.
+- [ ] Play music, open Reels so the cover comes up, then lock the phone. The music can be played from the lock screen with sound. Unlock: Reels is covered again.
+- [ ] Settings → Start over from a preset. A daily app limit you set before is still there afterwards.
+
 ## Then
 
-If everything passes, merge the pull requests in order: #12, #13, #14, #15, #16, then the TikTok one.
+If everything passes, merge the pull requests in order: #12, #13, #14, #15, #16, then the TikTok one, then the audit one.

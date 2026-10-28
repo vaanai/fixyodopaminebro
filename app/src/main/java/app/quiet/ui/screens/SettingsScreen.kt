@@ -250,7 +250,7 @@ private fun PresetDialog(onDismiss: () -> Unit, onPick: (Preset) -> Unit) {
         title = { Text("Start over from a preset", color = c.text) },
         text = {
             Column {
-                Note("Feeds, unlocks and the allowance are reset. Your focus schedule, tracked apps and settings lock stay.")
+                Note("Feeds, unlocks and the allowance are reset. Daily app limits, your focus schedule, tracked apps and the settings lock stay.")
                 Spacer(Modifier.height(10.dp))
                 for (p in Preset.entries) ChoiceRow(p.title, p.blurb, p == picked) { picked = p }
             }
@@ -466,7 +466,7 @@ private fun BlockScreenPage() {
             Note(if (s.coverStyle == CoverStyle.ABOVE_TABS) "The app's own tabs stay tappable under the cover." else "Nothing of the app shows through.")
             Spacer(Modifier.height(8.dp))
             Divider()
-            SwitchRow("Silence the video behind it", s.pauseVideo, "Pauses or mutes what's playing under the cover.", Icons.Rounded.VolumeOff) { on ->
+            SwitchRow("Silence the video behind it", s.pauseVideo, "Pauses the video under the cover. Music you're playing pauses too while the cover is up.", Icons.Rounded.VolumeOff) { on ->
                 editor.edit { it.copy(pauseVideo = on) }
             }
             SwitchRow("Haptic tap", s.haptics, "A small buzz when a block appears.", Icons.Rounded.Vibration) { on ->

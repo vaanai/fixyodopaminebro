@@ -3,7 +3,7 @@
   "app": "instagram",
   "displayName": "Instagram",
   "packages": ["com.instagram.android"],
-  "version": 5,
+  "version": 6,
   "verified": true,
   "tabBarSignal": "tabBar",
   "pagerSignal": "reelPager",
@@ -70,6 +70,11 @@
     "profilePostsFeed": [
       { "idExact": "action_bar_title", "text": "Posts", "maxBottomFraction": 0.15, "note": "The Posts feed you get by tapping a grid post on a profile" }
     ],
+    "otherProfile": [
+      { "idExact": "profile_header_container", "note": "Exact ids only: a profile opened from Home or Search keeps that tab selected, so this rule runs before Home's" },
+      { "idExact": "row_profile_header" },
+      { "idExact": "profile_header_actions_top_row" }
+    ],
     "profileHeader": [
       { "id": "profile_header_container" },
       { "id": "row_profile_header" },
@@ -109,6 +114,7 @@
     { "surface": "stories", "all": ["storyViewer"] },
     { "surface": "reel_viewer", "all": ["reelPager"] },
     { "surface": "messages", "any": ["dmComposer", "dmInbox", "messagesTabSelected"] },
+    { "surface": "profile", "any": ["otherProfile", "profilePostsFeed"] },
     { "surface": "home", "all": ["homeTabSelected"] },
     { "surface": "explore", "all": ["searchTabSelected"] },
     { "surface": "profile", "any": ["profileHeader", "profileTabSelected", "profilePostsFeed"] }

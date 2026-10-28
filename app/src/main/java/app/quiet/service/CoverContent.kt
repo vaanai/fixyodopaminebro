@@ -42,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -238,13 +239,21 @@ private fun Buttons(model: CoverModel, actions: CoverActions) {
 private fun UnlockButton(model: CoverModel, actions: CoverActions) {
     val c = Q.colors
     val cover = model.cover
-    var waiting by remember(model.waitSkipped) { mutableStateOf(model.waitSkipped) }
-    var remaining by remember(model.waitSkipped) { mutableIntStateOf(if (model.waitSkipped) 0 else cover.unlockWaitSeconds) }
-    LaunchedEffect(waiting) {
+    // The wait runs from when it was started, not from when this cover was drawn: leaving and coming back,
+    // or opening the ad screen and backing out, carries on where it was.
+    var startedAt by remember(model.waitSkipped, model.waitStartedAt) { mutableLongStateOf(model.waitStartedAt ?: 0L) }
+    val waiting = model.waitSkipped || startedAt > 0L
+    fun leftAt(now: Long): Int =
+        if (model.waitSkipped) 0 else (cover.unlockWaitSeconds - ((now - startedAt) / 1000).toInt()).coerceIn(0, cover.unlockWaitSeconds)
+    var remaining by remember(model.waitSkipped, model.waitStartedAt) {
+        mutableIntStateOf(if (waiting) leftAt(System.currentTimeMillis()) else cover.unlockWaitSeconds)
+    }
+    LaunchedEffect(waiting, startedAt) {
         if (!waiting) return@LaunchedEffect
-        while (remaining > 0) {
-            delay(1000)
-            remaining--
+        while (true) {
+            remaining = leftAt(System.currentTimeMillis())
+            if (remaining == 0) break
+            delay(250)
         }
     }
     val offers = cover.unlockOffers
@@ -283,7 +292,8 @@ private fun UnlockButton(model: CoverModel, actions: CoverActions) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .clickable(enabled = !waiting) {
-                waiting = true
+                startedAt = System.currentTimeMillis()
+                actions.onWaitStarted(cover)
             }
             .padding(vertical = 14.dp),
     )

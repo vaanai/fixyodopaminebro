@@ -50,7 +50,7 @@ fun FocusScreen() {
         editor.edit { st -> st.copy(focusWindows = st.focusWindows.map { if (it.id == id) f(it) else it }) }
 
     Page {
-        ScreenHeader("Focus schedule", "During these times every video feed is blocked, and so is anything set to Pause or Limit. Feeds you allow and your chats keep working.", onBack = { nav.back() })
+        ScreenHeader("Focus schedule", "During these times every video feed is blocked, even ones you allow, and so is anything set to Pause or Limit. Chats, profiles and anything else you allow keep working.", onBack = { nav.back() })
         for (w in s.focusWindows) {
             Spacer(Modifier.height(12.dp))
             QCard {

@@ -47,6 +47,8 @@ interface CoverActions {
     fun onContinue(cover: Cover)
     /** Opens Quiet's own screen to watch one ad instead of the rest of the unlock wait. */
     fun onSkipWaitWithAd(cover: Cover)
+    /** The unlock wait began; remembered so the wait isn't restarted when the cover comes back. */
+    fun onWaitStarted(cover: Cover)
 }
 
 data class CoverModel(
@@ -59,6 +61,8 @@ data class CoverModel(
     val waitSkipped: Boolean = false,
     /** Name of the app a link came from, for "Back to Messages". */
     val returnTo: String? = null,
+    /** When this app's unlock wait was started (epoch ms), if it was and hasn't been used. */
+    val waitStartedAt: Long? = null,
 )
 
 data class PillModel(val text: String, val urgent: Boolean, val accent: Accent)

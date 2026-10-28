@@ -84,6 +84,8 @@ class QuietService : AccessibilityService(), CoverActions {
     private var lastLoggedSurface: String? = null
     private val genericUnlocks = mutableMapOf<String, Long>()
     private val skippedWaits = mutableMapOf<String, Long>()
+    /** When an unlock wait was started, per app, so leaving the cover (or the ad screen) doesn't restart it. */
+    private val waitStarts = mutableMapOf<String, Long>()
     private var receiversRegistered = false
     private var debugReceiverRegistered = false
     private var lastCoverTapAt = 0L
@@ -216,6 +218,8 @@ class QuietService : AccessibilityService(), CoverActions {
         if (SkipWaitActivity.isStarting || ownScreenActive()) {
             overlays.hideAll()
             media.release()
+            // The Today screen shows unlocks and passes from this; keep it current while Quiet is in front.
+            LiveState.update { it.copy(engine = engine.snapshot()) }
             return
         }
         val settings = store.settings.value
@@ -279,6 +283,7 @@ class QuietService : AccessibilityService(), CoverActions {
                     todayLine(),
                     adSkip = s.adSkipsWait,
                     waitSkipped = (skippedWaits[cover.app] ?: 0L) > now,
+                    waitStartedAt = waitStarts[cover.app]?.takeIf { now - it < SKIPPED_WAIT_KEEP_MS },
                     returnTo = cameFrom?.takeIf { cover.fromLink }?.let { appLabel(it) },
                 ),
             )
@@ -444,6 +449,11 @@ class QuietService : AccessibilityService(), CoverActions {
 
     override fun onNav(cover: Cover, target: String) {
         if (!tapTaken()) return
+        navTo(target)
+    }
+
+    /** Taps the app's own tab for [target]; Back when it can't be found on this screen. */
+    private fun navTo(target: String) {
         val rules = lastRules
         val fg = foreground
         val clicked = if (rules != null && fg != null) {
@@ -493,10 +503,26 @@ class QuietService : AccessibilityService(), CoverActions {
     }
 
     override fun onLeave(cover: Cover) {
-        if (cover.reason == CoverReason.PAUSE) store.mutateToday { it.copy(pausesLeft = it.pausesLeft + 1) }
+        if (!tapTaken()) return
+        if (cover.reason == CoverReason.PAUSE) {
+            // "Not now" on a pause turns away from that one screen, not the whole app.
+            store.mutateToday { it.copy(pausesLeft = it.pausesLeft + 1) }
+            val away = cover.navTargets.firstOrNull { it.id != cover.surface }?.id
+            if (away != null) {
+                navTo(away)
+            } else {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                main.postDelayed({ scheduleEval() }, 350)
+            }
+            return
+        }
         overlays.hideCover()
         media.release()
         performGlobalAction(GLOBAL_ACTION_HOME)
+    }
+
+    override fun onWaitStarted(cover: Cover) {
+        waitStarts[cover.app] = System.currentTimeMillis()
     }
 
     override fun onUnlock(cover: Cover, videos: Boolean) {
@@ -509,6 +535,7 @@ class QuietService : AccessibilityService(), CoverActions {
         }
         store.mutateToday(now) { it.copy(unlocks = it.unlocks + 1) }
         skippedWaits.remove(cover.app)
+        waitStarts.remove(cover.app)
         store.addLog(cover.appName, if (videos) "Unlocked ${plural(s.unlockVideos, "more video")}" else "Unlocked for ${s.unlockMinutes} min")
         overlays.hideCover()
         media.release()
@@ -528,6 +555,7 @@ class QuietService : AccessibilityService(), CoverActions {
     /** One ad was watched for [app]: its next block screen goes straight to the unlock choices. */
     fun skipWait(app: String) {
         skippedWaits[app] = System.currentTimeMillis() + SKIPPED_WAIT_KEEP_MS
+        waitStarts.remove(app)
         scheduleEval()
     }
 
@@ -546,6 +574,7 @@ class QuietService : AccessibilityService(), CoverActions {
     fun relock(app: String) {
         engine.relock(app)
         genericUnlocks.remove(app)
+        LiveState.update { it.copy(engine = engine.snapshot()) }
         scheduleEval()
     }
 
@@ -562,6 +591,8 @@ class QuietService : AccessibilityService(), CoverActions {
         store.mutateToday(now) { it.copy(unlocks = it.unlocks + 1) }
         val name = store.rules.value.apps[app]?.displayName ?: app
         store.addLog(name, if (videos) "Unlocked ${plural(s.unlockVideos, "more video")}" else "Unlocked for ${s.unlockMinutes} min")
+        waitStarts.remove(app)
+        LiveState.update { it.copy(engine = engine.snapshot()) }
         scheduleEval()
         return true
     }
@@ -719,10 +750,15 @@ class QuietService : AccessibilityService(), CoverActions {
                 Intent.ACTION_SCREEN_OFF -> {
                     screenOn = false
                     store.flushNow()
+                    // Nothing stays muted or drawn while the phone is locked: music on the lock screen
+                    // must play. The next look after unlocking puts back whatever is still needed.
+                    overlays.hideAll()
+                    media.release()
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn = true
                     lastTick = System.currentTimeMillis()
+                    scheduleEval()
                 }
                 Intent.ACTION_USER_PRESENT -> scheduleEval()
             }

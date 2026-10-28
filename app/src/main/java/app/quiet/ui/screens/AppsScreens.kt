@@ -271,7 +271,7 @@ fun AppDetailScreen(appId: String) {
                 SwitchRow(
                     "Chats stay open",
                     settings.keepMessagesOpen,
-                    if (settings.keepMessagesOpen) "Your messages still work after the limit. This goes for every app." else "The limit covers chats too. This goes for every app.",
+                    if (settings.keepMessagesOpen) "Chats still open after the limit, though videos sent in them don't. This one setting covers all your apps." else "The limit covers chats too. This one setting covers all your apps.",
                 ) { on -> editor.edit { it.copy(keepMessagesOpen = on) } }
             }
         }
