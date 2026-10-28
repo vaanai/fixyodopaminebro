@@ -214,6 +214,12 @@ class QuietService : AccessibilityService(), CoverActions {
         val fg = currentForeground()
         onForeground(fg, now)
         if (!screenOn) return
+        // On the lock screen nothing is covered or muted; unlocking looks again.
+        if (isLocked()) {
+            overlays.hideAll()
+            media.release()
+            return
+        }
         // Nothing is ever drawn over Quiet's own screens: above all the ad screen and the ad it shows.
         if (SkipWaitActivity.isStarting || ownScreenActive()) {
             overlays.hideAll()
