@@ -72,7 +72,8 @@ Now set For You back to **Block**.
 - [ ] Mid-wait, tap "Skip the wait with 1 short ad", then back out of the ad screen without watching. The wait is still counting down.
 - [ ] Unlock from the Today screen. The card for that unlock shows straight away, and "Lock now" takes it away straight away.
 - [ ] Set Explore to **Pause**. Open Explore, tap "Not now". You land on another Instagram tab, not your phone's home screen.
-- [ ] Play music, open Reels so the cover comes up, then lock the phone. The music can be played from the lock screen with sound. Unlock: Reels is covered again.
+- [ ] Play music, open Reels so the cover comes up, then lock the phone. The music can be played from the lock screen with sound. Turn the screen on without unlocking: no cover on the lock screen. Unlock: Reels is covered again.
+- [ ] Take a 15 minute unlock on Reels, then install the new test build over the old one (or turn Quiet off and on in Accessibility). Reels is still unlocked, with the time left where it was.
 - [ ] Settings → Start over from a preset. A daily app limit you set before is still there afterwards.
 
 ## Then

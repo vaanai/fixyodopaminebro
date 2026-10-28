@@ -39,6 +39,7 @@ import quiet.core.engine.Decision
 import quiet.core.engine.Engine
 import quiet.core.engine.EngineInput
 import quiet.core.engine.EventType
+import quiet.core.engine.SavedPasses
 import quiet.core.engine.ScrollInfo
 import quiet.core.rules.AppRules
 import quiet.core.stats.StatsMath
@@ -89,6 +90,7 @@ class QuietService : AccessibilityService(), CoverActions {
     private var receiversRegistered = false
     private var debugReceiverRegistered = false
     private var lastCoverTapAt = 0L
+    private var keptPasses = SavedPasses()
 
     private val evalRunnable = Runnable { evaluateSafely() }
     private val tickRunnable = object : Runnable {
@@ -105,6 +107,7 @@ class QuietService : AccessibilityService(), CoverActions {
         instance = this
         overlays = Overlays(this, this)
         media = MediaPauser(this).also { it.recover() }
+        restorePasses()
         registerReceivers()
         lastTick = System.currentTimeMillis()
         main.post(tickRunnable)
@@ -201,6 +204,7 @@ class QuietService : AccessibilityService(), CoverActions {
         lastEvalAt = System.currentTimeMillis()
         try {
             evaluate()
+            keepPasses()
         } catch (t: Throwable) {
             // Fail open: never leave a cover up because of a bug.
             Log.e(TAG, "evaluate failed", t)
@@ -673,6 +677,26 @@ class QuietService : AccessibilityService(), CoverActions {
         return pkg in all && pkg != "com.android.settings"
     }
 
+    private fun passPrefs() = getSharedPreferences("passes", MODE_PRIVATE)
+
+    /** Unlocks survive a restart of the service, such as an app update mid-unlock. */
+    private fun restorePasses() {
+        val now = System.currentTimeMillis()
+        val saved = SavedPasses.decode(passPrefs().getString(KEY_PASSES, null)).liveAt(now)
+        engine.restorePasses(saved, now)
+        genericUnlocks.putAll(saved.generic)
+        keptPasses = saved
+    }
+
+    /** Saves the running unlocks when they've changed (a new one, one used up, a swipe off "watch N more"). */
+    private fun keepPasses() {
+        val now = System.currentTimeMillis()
+        val current = engine.savedPasses(now).copy(generic = genericUnlocks.filterValues { it > now })
+        if (current == keptPasses) return
+        keptPasses = current
+        passPrefs().edit().putString(KEY_PASSES, SavedPasses.encode(current)).apply()
+    }
+
     private fun isLocked(): Boolean = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
 
     private fun appLabel(pkg: String): String? = runCatching {
@@ -819,6 +843,7 @@ class QuietService : AccessibilityService(), CoverActions {
         private const val BACK_CHECK_MS = 900L
         /** How long a wait skipped with an ad stays skipped if no unlock is picked. */
         private const val SKIPPED_WAIT_KEEP_MS = 10 * 60_000L
+        private const val KEY_PASSES = "running"
 
         @Volatile
         var instance: QuietService? = null

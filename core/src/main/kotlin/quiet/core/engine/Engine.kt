@@ -590,6 +590,19 @@ class Engine {
         videoPasses.remove(app)
     }
 
+    /** What's still running of unlocks and pause passes, to keep across a restart. */
+    fun savedPasses(now: Long): SavedPasses = SavedPasses(
+        passes = passes.toMap(),
+        videos = videoPasses.mapValues { it.value.remaining to it.value.until },
+    ).liveAt(now)
+
+    /** Puts back what [savedPasses] kept. Anything that ran out meanwhile stays gone. */
+    fun restorePasses(saved: SavedPasses, now: Long) {
+        val live = saved.liveAt(now)
+        passes.putAll(live.passes)
+        live.videos.forEach { (app, v) -> videoPasses[app] = VideoPass(v.first, v.second) }
+    }
+
     fun unlockedUntil(app: String, now: Long): Long? =
         passes[app]?.takeIf { it > now } ?: videoPasses[app]?.takeIf { it.until > now }?.until
 
