@@ -1,6 +1,6 @@
 # Pixel test before merging
 
-One pass on a real phone for every open Quiet change, pull requests #12 to #18 (stories lag, Home on scroll, settings cleanup, the skip-the-wait ad, the mode fixes, TikTok misfires, and profiles, the unlock wait and the other rough edges). Install the `quiet-debug.apk` from the **test** release over the current app, so your settings carry over. Debug builds show Google's test ads, never real ones.
+One pass on a real phone for every change in the combined pull request, which holds what was #12 to #18 (stories lag, Home on scroll, settings cleanup, the skip-the-wait ad, the mode fixes, TikTok misfires, and profiles, the unlock wait and the other rough edges). Install the `quiet-debug.apk` from the **test** release over the current app, so your settings carry over. Debug builds show Google's test ads, never real ones.
 
 If something is off, note what you tapped and what you saw. With the phone plugged into a computer, Settings → Advanced → Verbose logging also writes what Quiet saw to logcat (tag Quiet).
 
@@ -78,6 +78,4 @@ Now set For You back to **Block**.
 
 ## Then
 
-If everything passes, merge the pull requests in order: #12, #13, #14, #15, #16, #17, #18.
-
-Each one is stacked on the one before it. For each: choose **Create a merge commit** (not squash), merge, then tap **Delete branch**. Deleting the branch moves the next pull request onto main by itself, so it's ready to merge.
+If everything passes, merge the one pull request that holds all of this into main. Pick **Create a merge commit**.
