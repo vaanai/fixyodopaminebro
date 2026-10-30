@@ -17,14 +17,19 @@ data class Reading(
     /** Y coordinate where the app's bottom tab bar begins, or null when there is no tab bar on screen. */
     val tabBarTop: Int?,
     val truncated: Boolean,
-    /** Y coordinate where the surface's keep area (like the Stories row) ends, or null when it isn't on screen. */
-    val keepBottom: Int? = null,
+    /** The surface's open top (like the Stories row above Home) is on screen: you haven't scrolled past it. */
+    val atTop: Boolean = false,
+    /**
+     * Nothing on screen could be told apart: no window, an empty tree, or only unnamed containers (a
+     * screen mid-transition). As opposed to a screen with content that no rule matched.
+     */
+    val blank: Boolean = false,
 ) {
     val isUnknown: Boolean get() = surface == null
 
     companion object {
         fun unknown(app: String, truncated: Boolean = false) =
-            Reading(app, null, null, emptySet(), "", null, truncated)
+            Reading(app, null, null, emptySet(), "", null, truncated, blank = true)
     }
 }
 
@@ -48,7 +53,7 @@ object Detector {
             ?.takeIf { it.top > tree.screenHeight / 2 }
             ?.top
 
-        val keep = rule?.let { rules.surface(it.surface)?.keep }
+        val top = rule?.let { rules.surface(it.surface)?.openTop }
         return Reading(
             app = rules.app,
             surface = rule?.surface,
@@ -57,29 +62,10 @@ object Detector {
             signature = signature(tree, rules.signatureIds),
             tabBarTop = tabBarTop,
             truncated = tree.truncated,
-            keepBottom = keep?.let { keepBottom(rules, tree, it.signal, tabBarTop) },
+            atTop = top != null && top.signal in present,
+            blank = tree.nodes.none { n -> tree.isOnScreen(n) && (n.id != null || n.labels().isNotEmpty()) },
         )
     }
-
-    /**
-     * Lowest edge of the keep area's nodes. A matched story bubble's name sits below it in the same
-     * row item, so a row-sized parent counts too. Null when nothing is on screen or the area reaches
-     * so far down that keeping it would leave little covered: then the whole surface is covered.
-     */
-    private fun keepBottom(rules: AppRules, tree: UiTree, signal: String, tabBarTop: Int?): Int? {
-        val sig = rules.signals[signal] ?: return null
-        val limit = minOf(tabBarTop ?: tree.screenHeight, (tree.screenHeight * KEEP_MAX_FRACTION).toInt())
-        val bottom = tree.nodes.asSequence()
-            .filter { n -> sig.anyOf.any { it.matches(n, tree) } }
-            .map { n ->
-                val p = tree.parentOf(n)
-                if (p != null && p.height >= n.height && p.height <= tree.screenHeight / 4) maxOf(n.bottom, p.bottom) else n.bottom
-            }
-            .maxOrNull() ?: return null
-        return bottom.takeIf { it in 1 until limit }
-    }
-
-    private const val KEEP_MAX_FRACTION = 0.6
 
     /**
      * A fingerprint of what's on screen, built from visible text that doesn't change while a video
@@ -89,9 +75,9 @@ object Detector {
      */
     fun signature(tree: UiTree, signatureIds: List<String>): String {
         val preferred = if (signatureIds.isEmpty()) emptyList() else tree.nodes.filter { n ->
-            tree.isOnScreen(n) && signatureIds.any { sid -> n.id?.contains(sid, ignoreCase = true) == true }
+            !n.extra && tree.isOnScreen(n) && signatureIds.any { sid -> n.id?.contains(sid, ignoreCase = true) == true }
         }
-        val pool: List<UiNode> = preferred.ifEmpty { tree.nodes.filter { tree.isOnScreen(it) } }
+        val pool: List<UiNode> = preferred.ifEmpty { tree.nodes.filter { !it.extra && tree.isOnScreen(it) } }
         val parts = pool.asSequence()
             .flatMap { it.labels().asSequence() }
             .map { it.trim().take(80).replace(NUMBERS, "#") }

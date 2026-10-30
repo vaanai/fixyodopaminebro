@@ -1,8 +1,8 @@
 # Quiet privacy policy
 
-_Last updated: 26 October 2026_
+_Last updated: 27 October 2026_
 
-Quiet is an Android app that blocks endless short-video feeds (Instagram Reels, TikTok For You, YouTube Shorts) and counts the time you spend in social apps. It works entirely on your phone. There is no Quiet account and no Quiet server.
+Quiet is an Android app that blocks endless short-video feeds (Instagram Reels, TikTok For You, YouTube Shorts) and counts the time you spend in social apps. Its blocking and time tracking work entirely on your phone. There is no Quiet account and no Quiet server. The one exception is an optional ad, described below, that you can watch to skip an unlock's wait.
 
 ## What Quiet accesses
 
@@ -31,7 +31,15 @@ Screen content read through the Accessibility service is used in the moment and 
 
 ## What Quiet shares
 
-Nothing. Quiet does not send any data off your phone, has no analytics or advertising SDKs, and does not sell or share data with anyone. Quiet does not request internet access for any of its features.
+Quiet itself sends nothing off your phone and does not sell or share your data. Your settings, stats, activity log and anything read through the Accessibility service never leave the phone. Quiet has no analytics.
+
+## Ads
+
+When you unlock a blocked feed, Quiet first asks you to wait. Instead of waiting, you can choose to watch one short ad. That ad is shown by **Google AdMob**, only on Quiet's own "Skip the wait" screen, and only when you open that screen. Ads never appear over other apps.
+
+To show and measure ads, Google's Mobile Ads SDK, which is part of the app, collects information such as your IP address (and so your approximate location), your device's advertising ID, and how you interact with the ad, and Google may use it as described in [Google's privacy policy](https://policies.google.com/privacy) and [how Google uses information from apps that use its services](https://policies.google.com/technologies/partner-sites). Quiet does not give Google anything from your settings, stats or screen content.
+
+If you are in the European Economic Area, the UK or Switzerland, Quiet asks for your consent through Google's consent form before any ad loads, and you can change your choice later with **Ad privacy choices** on the Skip the wait screen. Anywhere, you can reset or delete your advertising ID in Android's settings (Settings → Privacy → Ads), or turn the ad off in Quiet (**Settings → Unlocks → Skip the wait with an ad**), in which case unlocking always means waiting.
 
 ## Your choices
 
@@ -46,7 +54,7 @@ Quiet is not directed at children under 13 and does not knowingly collect any pe
 
 ## Changes
 
-If this policy changes, for example if a future version adds features that need data to leave your phone, the new policy will be posted here with a new date before that version is released, and the app will explain the change.
+If this policy changes, for example if a future version adds other features that need data to leave your phone, the new policy will be posted here with a new date before that version is released, and the app will explain the change.
 
 ## Contact
 

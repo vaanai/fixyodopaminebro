@@ -6,6 +6,7 @@ import quiet.core.Fixtures.TT
 import quiet.core.detect.Detector
 import quiet.core.rules.SurfaceKind
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -25,31 +26,33 @@ class DetectorTest {
         assertEquals("home", Detector.read(ig, Fixtures.igHome()).surface)
     }
 
-    @Test fun `stories row bottom includes the names under the bubbles`() {
-        val r = Detector.read(ig, Fixtures.igHomeWithStories(trayBottom = 560))
+    @Test fun `the stories row means you're at the top of home`() {
+        val r = Detector.read(ig, Fixtures.igHomeWithStories())
         assertEquals("home", r.surface)
-        assertEquals(550, r.keepBottom)
+        assertTrue(r.atTop)
+        assertTrue(Detector.read(ig, Fixtures.igHomeWithStories(byIdOnly = true)).atTop)
     }
 
-    @Test fun `stories row found by its container id`() {
-        assertEquals(600, Detector.read(ig, Fixtures.igHomeWithStories(trayBottom = 600, byIdOnly = true)).keepBottom)
+    @Test fun `no stories row means you've scrolled past the top`() {
+        assertFalse(Detector.read(ig, Fixtures.igHome()).atTop)
     }
 
-    @Test fun `no stories row means nothing to keep`() {
-        assertNull(Detector.read(ig, Fixtures.igHome()).keepBottom)
+    @Test fun `a story ring on a post further down isn't the stories row`() {
+        val scrolled = Screen(IG).apply {
+            node(desc = "sam's story", clickable = true, top = 300, bottom = 400, right = 120)
+            node(text = "friend posted a photo", top = 400, bottom = 500)
+            Fixtures.igTabs(this, "feed_tab")
+        }.build()
+        assertFalse(Detector.read(ig, scrolled).atTop)
     }
 
-    @Test fun `a stories row reaching far down the screen is not kept`() {
-        assertNull(Detector.read(ig, Fixtures.igHomeWithStories(trayTop = 1300, trayBottom = 1600, byIdOnly = true)).keepBottom)
-    }
-
-    @Test fun `keep areas only apply on their own surface`() {
+    @Test fun `the open top only counts on its own surface`() {
         val reels = Screen(IG).apply {
             node(id = "$IG:id/reels_tray_container", top = 200, bottom = 500)
             node(id = "$IG:id/clips_viewer_view_pager", top = 0, bottom = 2250)
             Fixtures.igTabs(this, "clips_tab")
         }.build()
-        assertNull(Detector.read(ig, reels).keepBottom)
+        assertFalse(Detector.read(ig, reels).atTop)
     }
 
     @Test fun `instagram thread is messages`() {

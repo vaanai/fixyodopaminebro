@@ -37,7 +37,9 @@ class SettingsAndStatsTest {
             disclosureAccepted = true,
             onboarded = true,
             linksPlay = false,
-        ).withApp("instagram") { it.copy(keepVisible = emptySet()) }
+            adSkipsWait = false,
+            unlockWaitSeconds = 90,
+        ).withApp("instagram") { it.copy(autoSkipTarget = null) }
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
     }
 
@@ -58,13 +60,23 @@ class SettingsAndStatsTest {
         assertEquals(UnlockKind.VIDEOS, SettingsCodec.decode("{}").unlockKind)
     }
 
+    @Test fun `settings saved before the ad existed keep it off`() {
+        assertEquals(false, SettingsCodec.decode("""{"onboarded": true, "unlockWaitSeconds": 15}""").adSkipsWait)
+        assertEquals(true, Settings().adSkipsWait)
+    }
+
     @Test fun `people set up before the disclosure screen count as having agreed`() {
         assertEquals(true, SettingsCodec.decode("""{"onboarded": true}""").disclosureAccepted)
         assertEquals(false, SettingsCodec.decode("{}").disclosureAccepted)
     }
 
-    @Test fun `blocking home keeps stories by default`() {
-        assertEquals(true, Settings().keepsVisible("instagram", "home"))
+    @Test fun `old "block all of home" becomes blocking stories too`() {
+        val all = SettingsCodec.decode("""{"apps": {"instagram": {"modes": {"home": "BLOCK"}, "keepVisible": []}}}""")
+        assertEquals(Mode.BLOCK, all.modeFor("instagram", "stories"))
+        val kept = SettingsCodec.decode("""{"apps": {"instagram": {"modes": {"home": "BLOCK"}, "keepVisible": ["home"]}}}""")
+        assertEquals(Mode.ALLOW, kept.modeFor("instagram", "stories"))
+        val open = SettingsCodec.decode("""{"apps": {"instagram": {"modes": {"home": "ALLOW"}, "keepVisible": []}}}""")
+        assertEquals(Mode.ALLOW, open.modeFor("instagram", "stories"))
     }
 
     @Test fun `garbage settings fall back to defaults`() {
@@ -102,7 +114,7 @@ class SettingsAndStatsTest {
 
     @Test fun `stats round trip`() {
         val d = DayStats("2026-10-22", appSeconds = mapOf("a" to 3), feedSeconds = 9, blocks = 2,
-            hourShortForm = List(24) { it }, videos = mapOf("instagram" to 4))
+            hourShortForm = List(24) { it }, videos = mapOf("instagram" to 4), unlocks = 2, adsWatched = 1)
         assertEquals(mapOf(d.date to d), StatsCodec.decode(StatsCodec.encode(mapOf(d.date to d))))
     }
 

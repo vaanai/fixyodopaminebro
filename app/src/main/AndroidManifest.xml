@@ -25,6 +25,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Quiet">
 
+        <!-- AdMob, for the optional ad that skips an unlock's wait. Test ID except in Play builds. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${admobAppId}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -35,6 +40,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The only place an ad ever shows: Quiet's own screen, opened when you choose to skip a wait.
+             Its own task, so finishing it lands you back in the app you came from. -->
+        <activity
+            android:name=".ads.SkipWaitActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Quiet" />
 
         <service
             android:name=".service.QuietService"

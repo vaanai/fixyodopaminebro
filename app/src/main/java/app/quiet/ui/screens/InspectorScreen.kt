@@ -72,7 +72,7 @@ fun InspectorScreen() {
             Line("Surface", r?.surface ?: "unknown")
             Line("Kind", r?.kind?.name ?: "–")
             Line("Tab bar at", r?.tabBarTop?.toString() ?: "–")
-            Line("Kept until", r?.keepBottom?.toString() ?: "–")
+            Line("At the top", if (r?.atTop == true) "yes" else "no")
             Line("Signature", r?.signature?.ifEmpty { "–" } ?: "–")
             if (r != null && r.signals.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))

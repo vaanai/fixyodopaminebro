@@ -45,17 +45,22 @@ class RuleParserTest {
         assertFailsWith<RuleParseException> { RuleParser.parse(minimal().replace("\"schemaVersion\": 2", "\"schemaVersion\": 1")) }
     }
 
-    @Test fun `keep areas parse and must name a known signal`() {
+    @Test fun `open tops parse and must name a known signal`() {
         val withKeep = minimal().replace(
             """{"id": "s", "label": "S", "kind": "VIDEO_FEED"}""",
-            """{"id": "s", "label": "S", "kind": "VIDEO_FEED", "keep": {"signal": "a", "name": "Stories"}}""",
+            """{"id": "s", "label": "S", "kind": "VIDEO_FEED", "openTop": {"signal": "a", "name": "Stories"}}""",
         )
-        assertEquals("Stories", RuleParser.parse(withKeep).surface("s")?.keep?.name)
+        assertEquals("Stories", RuleParser.parse(withKeep).surface("s")?.openTop?.name)
         assertFailsWith<RuleParseException> { RuleParser.parse(withKeep.replace("\"signal\": \"a\"", "\"signal\": \"nope\"")) }
+        assertFailsWith<RuleParseException> { RuleParser.parse(withKeep.replace("\"name\": \"Stories\"", "\"name\": \"Stories\", \"surface\": \"nope\"")) }
+        assertFailsWith<RuleParseException> { RuleParser.parse(withKeep.replace("\"name\": \"Stories\"", "\"name\": \"Stories\", \"back\": \"nope\"")) }
     }
 
-    @Test fun `instagram home keeps the stories row`() {
-        assertEquals("storiesTray", Fixtures.rules("instagram").surface("home")?.keep?.signal)
+    @Test fun `instagram home stays open at the stories row`() {
+        val top = Fixtures.rules("instagram").surface("home")?.openTop
+        assertEquals("storiesTray", top?.signal)
+        assertEquals("stories", top?.surface)
+        assertEquals("home", top?.back)
     }
 
     @Test fun `launch guess parses and must name a known surface and signal`() {

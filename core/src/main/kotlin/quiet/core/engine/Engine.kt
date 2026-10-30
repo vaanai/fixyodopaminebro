@@ -75,15 +75,24 @@ data class Cover(
     val origin: Origin? = null,
     val allowedSwipes: Int = 0,
     val unlockKind: UnlockKind = UnlockKind.MINUTES,
-    /** The cover starts at this y, leaving what's above it usable (like the Stories row), or at the top when null. */
-    val topPx: Int? = null,
-    /** What stays visible above the cover ("Stories"), when [topPx] is set. */
-    val keptName: String? = null,
+    /** The cover is on a video feed or a single video, where "watch N more" can count swipes. */
+    val videoSurface: Boolean = true,
+    /** You scrolled past this surface's open top ("Stories"); null when the surface has none open. */
+    val pastTop: String? = null,
+    /** Nav target that takes you back up to the open top. */
+    val backToTop: String? = null,
     /** Swiped on from a video a link opened: going back means back to the app the link came from. */
     val fromLink: Boolean = false,
+    /**
+     * The screen under the cover is a feed with the app's tabs, not a single video stacked on top of
+     * something: Back there would leave the app, so the way out is another tab.
+     */
+    val overFeed: Boolean = false,
+    /** Nav target that is the way off a feed (TikTok's Inbox). */
+    val safeTarget: String? = null,
 ) {
     /** The unlocks the block screen offers. */
-    val unlockOffers: List<UnlockKind> get() = unlockKind.offers(appLimit = reason == CoverReason.APP_LIMIT)
+    val unlockOffers: List<UnlockKind> get() = unlockKind.offers(appLimit = reason == CoverReason.APP_LIMIT || !videoSurface)
 
     /** Two covers with the same key are the same screen; the overlay is kept rather than redrawn. */
     val key: String get() = "$reason/$app/$surface"
@@ -110,6 +119,12 @@ data class Decision(
     val isFeed: Boolean = false,
     val isViewer: Boolean = false,
     val chargesBudget: Boolean = false,
+    /**
+     * The screen couldn't be read properly, so the last decision is being held for a moment. Read
+     * again soon rather than waiting for the app to send another event: the cover should go the
+     * moment the new screen can be read.
+     */
+    val held: Boolean = false,
 ) {
     companion object {
         val NONE = Decision()
@@ -183,16 +198,23 @@ class Engine {
         val raw = guessAtLaunch(input.rules, input.reading, now) ?: stillOnFeed(input.reading) ?: input.reading
         guessing = raw !== input.reading
 
-        // A partial read that already shows a chat is trusted: chats are never covered.
-        if (raw.isUnknown || (raw.truncated && raw.kind != SurfaceKind.MESSAGES)) {
+        // A partial read that already shows a chat or a story is trusted. Chats are never covered, and
+        // the story viewer is only in the tree when a story is open; it sits above the screen it
+        // opened from, so a read cut short is most likely to miss it, never to invent it.
+        if (raw.isUnknown || (raw.truncated && raw.kind !in TRUSTED_WHEN_PARTIAL)) {
             // An unreadable screen after a skip means the skip went somewhere: a later landing on
             // the same feed is a return, not a retry.
             landing?.let { if (raw.isUnknown && it.skipAttempts > 0 && now - it.lastSkipAt > SKIP_SETTLE_MS) landing = null }
             // Screens are briefly unreadable mid-transition, and a partial read can match the wrong
             // surface. Hold the last decision for a moment so the cover doesn't flicker, then fail
             // open (unknown) or go with the partial read (truncated).
-            if (lastKnown != null && now - lastKnownAt < UNKNOWN_HOLD_MS) {
-                return lastDecision.copy(command = null, events = emptyList())
+            // A full read that no rule matches, after a screen with the app's tab bar, while the tab bar
+            // is gone too, isn't a transition: something full-screen opened on top (a story's opening
+            // frames, before its viewer is labelled). Let the cover go now instead of after the hold.
+            val openedOnTop = raw.isUnknown && !raw.truncated && !raw.blank &&
+                raw.tabBarTop == null && lastKnown?.tabBarTop != null
+            if (lastKnown != null && now - lastKnownAt < UNKNOWN_HOLD_MS && !openedOnTop) {
+                return lastDecision.copy(command = null, events = emptyList(), held = true)
             }
             if (raw.isUnknown) {
                 lastKnown = null
@@ -248,18 +270,26 @@ class Engine {
         val appId = rules.app
         val appSet = s.app(appId)
         val now = input.now
-        if (!s.protectionOn || !appSet.enabled) return base
+        if (!s.protectionOn) return base
 
         val focus = isFocusActive(s, now, input.zone)
-        val videoPass = videoPasses[appId]?.takeIf { it.until > now }
-        val unlockedUntil = passes[appId]?.takeIf { it > now } ?: videoPass?.until
+        // An unlock that was running when focus started doesn't carry on into it unless unlocks are
+        // allowed during focus. "Watch N more" counts swipes, so it only opens videos.
+        val passesCount = !focus || s.focusAllowsUnlocks
+        val videoKind = kind == SurfaceKind.VIDEO_FEED || kind == SurfaceKind.VIDEO_VIEWER
+        val videoPass = videoPasses[appId]?.takeIf { it.until > now && passesCount && videoKind }
+        val unlockedUntil = passes[appId]?.takeIf { it > now && passesCount } ?: videoPass?.until
         val unlocksLeft = (s.unlocksPerDay - input.today.unlocks).coerceAtLeast(0)
         val label = rules.surface(surface)?.label ?: surface
+        // A feed's open top stays open only while what it leads to (Stories) isn't blocked too.
+        val openTop = rules.surface(surface)?.openTop?.takeIf { t ->
+            val to = t.surface ?: return@takeIf true
+            val toMode = s.modeFor(appId, to)
+            toMode != Mode.BLOCK && !(focus && toMode != Mode.ALLOW)
+        }
 
         fun cover(reason: CoverReason, offerBack: Boolean = false, fullScreen: Boolean = false): Cover {
             val canUnlock = reason != CoverReason.PAUSE && s.canUnlock(focus) && unlocksLeft > 0
-            val keep = rules.surface(surface)?.keep
-            val top = input.reading.keepBottom?.takeIf { !fullScreen && keep != null && s.keepsVisible(appId, surface) }
             return Cover(
                 reason = reason,
                 app = appId,
@@ -279,8 +309,10 @@ class Engine {
                 origin = session?.origin,
                 allowedSwipes = session?.let { s.viewerSwipesFor(appId, it.origin) } ?: 0,
                 unlockKind = s.unlockKind,
-                topPx = top,
-                keptName = keep?.name?.takeIf { top != null },
+                videoSurface = videoKind,
+                pastTop = openTop?.name?.takeIf { !fullScreen },
+                backToTop = openTop?.back?.takeIf { !fullScreen },
+                safeTarget = rules.safeTarget,
             )
         }
 
@@ -291,7 +323,8 @@ class Engine {
             else -> Pill("$prefix · ${formatClock(until - now)}", until - now < 60_000)
         }
 
-        // A whole-app daily limit trumps everything except chats (when chats are kept open).
+        // A whole-app daily limit trumps everything except chats (when chats are kept open), and holds
+        // even when the app's feeds aren't managed.
         val limit = appSet.dailyLimitMinutes
         if (limit > 0 && unlockedUntil == null &&
             input.today.appSecondsFor(rules.packages) >= limit * 60 &&
@@ -299,24 +332,48 @@ class Engine {
         ) {
             return base.copy(cover = cover(CoverReason.APP_LIMIT, fullScreen = true))
         }
+        // An app Quiet doesn't manage only keeps to its whole-app daily limit, if one is set.
+        if (!appSet.enabled) return base
 
-        if (kind == SurfaceKind.MESSAGES) return base
+        // Chats and profiles are never blocked: they're where the videos friends send you come from.
+        if (kind == SurfaceKind.MESSAGES || kind == SurfaceKind.PROFILE) return base
+
+        // Is a surface open right now: allowed, limited with allowance left, or past its pause? Focus
+        // closes every video feed.
+        fun isOpen(id: String): Boolean {
+            if (focus) return false
+            return when (s.modeFor(appId, id)) {
+                Mode.ALLOW -> true
+                Mode.LIMIT -> s.budgetMinutes * 60 - input.today.budgetSeconds > 0
+                Mode.PAUSE -> (passes["$appId.$id"] ?: 0L) > now
+                Mode.BLOCK -> false
+            }
+        }
 
         if (kind == SurfaceKind.VIDEO_VIEWER) {
             val sess = session ?: return base
             val allowed = s.viewerSwipesFor(appId, sess.origin)
-            if (allowed != UNLIMITED && sess.swipes > allowed && unlockedUntil == null) {
+            val beyond = allowed != UNLIMITED && sess.swipes > allowed && unlockedUntil == null
+            // Swipe allowances keep you out of the app's main feed through the back door. While that feed
+            // is open anyway, swiping on is no different from opening it: nothing to stop. (This also
+            // keeps a feed that was read as a single video from being covered when the feed is allowed.)
+            val main = rules.mainFeed
+            if (beyond && main != null && isOpen(main)) {
+                return base.copy(chargesBudget = s.modeFor(appId, main) == Mode.LIMIT)
+            }
+            if (beyond) {
                 return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true))
             }
             return base.copy(pill = unlockedUntil?.let { passPill(it, "Unlocked") })
         }
 
         // A link from another app (a TikTok texted to you) often opens inside the feed. The video it
-        // opened plays, and swiping on is limited like a video sent in a chat.
-        if (linkVisit && kind == SurfaceKind.VIDEO_FEED) {
+        // opened plays, and swiping on is limited like a video sent in a chat. A feed that's open anyway
+        // needs none of that and is handled like any other visit below.
+        if (linkVisit && kind == SurfaceKind.VIDEO_FEED && !isOpen(surface)) {
             val allowed = s.viewerSwipesFor(appId, Origin.MESSAGES)
             if (allowed != UNLIMITED && linkSwipes > allowed && unlockedUntil == null) {
-                return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true).copy(fromLink = true))
+                return base.copy(cover = cover(CoverReason.SWIPE_LIMIT, offerBack = true, fullScreen = true).copy(fromLink = true, overFeed = true))
             }
             return base.copy(isFeed = false, isViewer = true, pill = unlockedUntil?.let { passPill(it, "Unlocked") })
         }
@@ -331,6 +388,9 @@ class Engine {
         if (unlockedUntil != null && mode != Mode.ALLOW) {
             return base.copy(pill = passPill(unlockedUntil, "Unlocked"))
         }
+
+        // The top of the feed (Instagram's Stories row) stays open; scrolling past it is what's blocked.
+        if (openTop != null && input.reading.atTop && mode != Mode.ALLOW) return base
 
         return when (mode) {
             Mode.ALLOW -> base
@@ -530,6 +590,19 @@ class Engine {
         videoPasses.remove(app)
     }
 
+    /** What's still running of unlocks and pause passes, to keep across a restart. */
+    fun savedPasses(now: Long): SavedPasses = SavedPasses(
+        passes = passes.toMap(),
+        videos = videoPasses.mapValues { it.value.remaining to it.value.until },
+    ).liveAt(now)
+
+    /** Puts back what [savedPasses] kept. Anything that ran out meanwhile stays gone. */
+    fun restorePasses(saved: SavedPasses, now: Long) {
+        val live = saved.liveAt(now)
+        passes.putAll(live.passes)
+        live.videos.forEach { (app, v) -> videoPasses[app] = VideoPass(v.first, v.second) }
+    }
+
     fun unlockedUntil(app: String, now: Long): Long? =
         passes[app]?.takeIf { it > now } ?: videoPasses[app]?.takeIf { it.until > now }?.until
 
@@ -566,6 +639,9 @@ class Engine {
         const val SKIP_RETRY_MS = 1_200L
         const val VIDEO_PASS_MAX_MS = 30 * 60_000L
         const val RETURN_SHOWS_COVER_MS = 20_000L
+
+        /** Kinds a partial read can be taken at its word for. */
+        private val TRUSTED_WHEN_PARTIAL = setOf(SurfaceKind.MESSAGES, SurfaceKind.STORIES)
 
         fun isFocusActive(s: Settings, now: Long, zone: ZoneId): Boolean {
             if (s.focusUntil > now) return true

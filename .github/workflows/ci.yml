@@ -50,6 +50,8 @@ jobs:
           QUIET_UPLOAD_STORE_PASSWORD: ${{ secrets.QUIET_UPLOAD_STORE_PASSWORD }}
           QUIET_UPLOAD_KEY_ALIAS: ${{ secrets.QUIET_UPLOAD_KEY_ALIAS }}
           QUIET_UPLOAD_KEY_PASSWORD: ${{ secrets.QUIET_UPLOAD_KEY_PASSWORD }}
+          QUIET_ADMOB_APP_ID: ${{ secrets.QUIET_ADMOB_APP_ID }}
+          QUIET_ADMOB_SKIP_WAIT_UNIT: ${{ secrets.QUIET_ADMOB_SKIP_WAIT_UNIT }}
         run: |
           if [ -n "$QUIET_UPLOAD_KEYSTORE_B64" ]; then
             echo "$QUIET_UPLOAD_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"

@@ -3,7 +3,7 @@
   "app": "instagram",
   "displayName": "Instagram",
   "packages": ["com.instagram.android"],
-  "version": 3,
+  "version": 6,
   "verified": true,
   "tabBarSignal": "tabBar",
   "pagerSignal": "reelPager",
@@ -54,7 +54,7 @@
     "storiesTray": [
       { "idExact": "reels_tray_container", "maxBottomFraction": 0.6, "note": "The Stories row at the top of Home" },
       { "id": "stories_tray", "maxBottomFraction": 0.6 },
-      { "descContains": "'s story", "maxBottomFraction": 0.5, "note": "A story bubble: 'name's story at column 2. Unseen.'" },
+      { "descContains": "story at column", "maxBottomFraction": 0.5, "note": "A bubble in the row: 'name's story at column 2. Unseen.' Posts' story rings don't say 'at column'." },
       { "descStartsWith": "Your story", "maxBottomFraction": 0.5 }
     ],
     "dmComposer": [
@@ -69,6 +69,11 @@
     ],
     "profilePostsFeed": [
       { "idExact": "action_bar_title", "text": "Posts", "maxBottomFraction": 0.15, "note": "The Posts feed you get by tapping a grid post on a profile" }
+    ],
+    "otherProfile": [
+      { "idExact": "profile_header_container", "note": "Exact ids only: a profile opened from Home or Search keeps that tab selected, so this rule runs before Home's" },
+      { "idExact": "row_profile_header" },
+      { "idExact": "profile_header_actions_top_row" }
     ],
     "profileHeader": [
       { "id": "profile_header_container" },
@@ -97,18 +102,19 @@
     { "id": "reel_viewer", "label": "Single reels", "kind": "VIDEO_VIEWER", "description": "A reel opened from a chat, a profile, your feed or Explore." },
     {
       "id": "home", "label": "Home feed", "kind": "FEED", "description": "Posts from people you follow, plus suggestions.",
-      "keep": { "signal": "storiesTray", "name": "Stories", "description": "The Stories row at the top stays tappable. Only the posts below it are covered." }
+      "openTop": { "signal": "storiesTray", "name": "Stories", "surface": "stories", "back": "home", "description": "The top of Home, with the Stories row, stays open. Scrolling down past it is blocked." }
     },
+    { "id": "stories", "label": "Stories", "kind": "STORIES", "description": "Stories you open from the row at the top of Home, or from a profile." },
     { "id": "explore", "label": "Search & Explore", "kind": "EXPLORE", "description": "The Explore grid and search." },
-    { "id": "stories", "label": "Stories", "kind": "STORIES", "description": "Stories from people you follow." },
     { "id": "messages", "label": "Messages", "kind": "MESSAGES", "description": "Your inbox and chats. Never blocked." },
-    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's." }
+    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's. Never blocked." }
   ],
   "rules": [
     { "surface": "reels", "all": ["reelsTabSelected"] },
     { "surface": "stories", "all": ["storyViewer"] },
     { "surface": "reel_viewer", "all": ["reelPager"] },
     { "surface": "messages", "any": ["dmComposer", "dmInbox", "messagesTabSelected"] },
+    { "surface": "profile", "any": ["otherProfile", "profilePostsFeed"] },
     { "surface": "home", "all": ["homeTabSelected"] },
     { "surface": "explore", "all": ["searchTabSelected"] },
     { "surface": "profile", "any": ["profileHeader", "profileTabSelected", "profilePostsFeed"] }

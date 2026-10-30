@@ -28,20 +28,30 @@ object RuleParser {
 
         val surfaces = root.optJSONArray("surfaces").objects().map { s ->
             val id = s.reqString("id")
-            val keep = s.optJSONObject("keep")?.let { k ->
+            val openTop = s.optJSONObject("openTop")?.let { k ->
                 val signal = k.reqString("signal")
-                if (signal !in signals) throw RuleParseException("surface $id keeps unknown signal $signal")
-                KeepArea(signal, k.reqString("name"), k.optString("description", ""))
+                if (signal !in signals) throw RuleParseException("surface $id's openTop uses unknown signal $signal")
+                OpenTop(
+                    signal = signal,
+                    name = k.reqString("name"),
+                    surface = k.optString("surface", "").ifBlank { null },
+                    back = k.optString("back", "").ifBlank { null },
+                    description = k.optString("description", ""),
+                )
             }
             SurfaceInfo(
                 id = id,
                 label = s.reqString("label"),
                 kind = parseKind(s.reqString("kind")),
                 description = s.optString("description", ""),
-                keep = keep,
+                openTop = openTop,
             )
         }
         val surfaceIds = surfaces.map { it.id }.toSet()
+        for (s in surfaces) {
+            val to = s.openTop?.surface ?: continue
+            if (to !in surfaceIds) throw RuleParseException("surface ${s.id}'s openTop leads to unknown surface $to")
+        }
 
         val rules = root.optJSONArray("rules").objects().mapIndexed { i, r ->
             val surface = r.reqString("surface")
@@ -63,6 +73,11 @@ object RuleParser {
             val signal = n.reqString("signal")
             if (signal !in signals) throw RuleParseException("nav ${n.optString("id")} uses unknown signal $signal")
             NavTarget(n.reqString("id"), n.reqString("label"), signal)
+        }
+
+        for (s in surfaces) {
+            val back = s.openTop?.back ?: continue
+            if (nav.none { it.id == back }) throw RuleParseException("surface ${s.id}'s openTop goes back via unknown nav target $back")
         }
 
         fun optSignal(key: String): String? {
@@ -101,6 +116,7 @@ object RuleParser {
             signatureIds = root.optJSONArray("signatureIds").strings(),
             autoSkipTarget = autoSkip,
             launch = launch,
+            findTabsWhenCut = root.optBoolean("findTabsWhenCut", false),
         )
     }
 

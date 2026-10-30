@@ -85,6 +85,37 @@ object Fixtures {
         igTabs(this, "feed_tab")
     }.build()
 
+    /** A story open full screen: Instagram hides the tab bar. */
+    fun igStory(): UiTree = Screen(IG).apply {
+        val root = node(id = "$IG:id/reel_viewer_root", top = 0, bottom = 2400)
+        node(parent = root, id = "$IG:id/reel_viewer_title", text = "sam", top = 150, bottom = 200)
+        node(parent = root, hint = "Send message", cls = "android.widget.EditText", editable = true, top = 2250, bottom = 2350)
+    }.build()
+
+    /**
+     * A story's first frames, read in full: the viewer is on screen but its views aren't labelled yet,
+     * and the tab bar has gone.
+     */
+    fun igStoryOpening(): UiTree = Screen(IG).apply {
+        node(id = "$IG:id/layout_container_overlay", top = 0, bottom = 2400)
+        node(desc = "Loading", top = 1100, bottom = 1300)
+    }.build()
+
+    /**
+     * Home with a story opening on top, read only in part: the read ran out of time after Home's
+     * posts and tab bar (still in the tree under the story) and reached only the top of the viewer.
+     */
+    fun igHomeUnderStory(reachedViewer: Boolean): UiTree = Screen(IG).apply {
+        node(text = "friend posted a photo", top = 400, bottom = 500)
+        igTabs(this, "feed_tab")
+        if (reachedViewer) node(id = "$IG:id/reel_viewer_root", top = 0, bottom = 2400)
+    }.build().let { UiTree(it.packageName, it.nodes, it.screenWidth, it.screenHeight, truncated = true) }
+
+    fun igProfile(): UiTree = Screen(IG).apply {
+        node(id = "$IG:id/profile_header_container", top = 200, bottom = 700)
+        igTabs(this, "profile_tab")
+    }.build()
+
     fun igThread(): UiTree = Screen(IG).apply {
         node(text = "lol watch this", top = 400, bottom = 500)
         node(id = "$IG:id/row_thread_composer_edittext", hint = "Message...", cls = "android.widget.EditText", editable = true, top = 2200, bottom = 2300)

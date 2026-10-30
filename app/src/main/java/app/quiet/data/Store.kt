@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import app.quiet.BuildConfig
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -26,6 +26,7 @@ import quiet.core.stats.DayStats
 import quiet.core.stats.StatsCodec
 import quiet.core.stats.plusCount
 import java.io.File
+import java.util.concurrent.Executors
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -48,7 +49,9 @@ data class RulesState(
  * Everything is small JSON in the app's files directory.
  */
 class Store(private val context: Context) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // One writer thread: saves land in the order they were made, so an older save can't overwrite a newer
+    // one, and two saves never share the same temporary file at once.
+    private val scope = CoroutineScope(SupervisorJob() + Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     private val dir = context.filesDir
     private val settingsFile = File(dir, "settings.json")
     private val statsFile = File(dir, "stats.json")
@@ -139,11 +142,18 @@ class Store(private val context: Context) {
         scope.launch { writeLog(_log.value) }
     }
 
-    fun clearStats() {
-        _history.value = emptyMap()
+    /**
+     * Clears history and the log. Today's time, allowance and unlocks stay, because limits run on
+     * them: a reset mustn't be a way round a limit without the settings lock's wait.
+     */
+    fun clearStats(now: Long = System.currentTimeMillis()) {
+        val today = today(now)
+        _history.value = mapOf(
+            today.date to DayStats(today.date, appSeconds = today.appSeconds, budgetSeconds = today.budgetSeconds, unlocks = today.unlocks),
+        )
         _log.value = emptyList()
         scope.launch {
-            statsFile.delete()
+            writeAtomic(statsFile, StatsCodec.encode(_history.value))
             logFile.delete()
         }
     }

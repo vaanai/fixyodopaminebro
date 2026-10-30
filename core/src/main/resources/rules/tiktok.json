@@ -3,10 +3,11 @@
   "app": "tiktok",
   "displayName": "TikTok",
   "packages": ["com.zhiliaoapp.musically", "com.ss.android.ugc.trill"],
-  "version": 3,
+  "version": 5,
   "verified": true,
   "tabBarSignal": "tabBar",
   "signatureIds": [],
+  "findTabsWhenCut": true,
   "autoSkipTarget": "inbox",
   "launch": { "surface": "for_you", "signal": "videoActions", "note": "TikTok opens on For You; at cold start the first reads stop inside the video pager before the tabs" },
   "signals": {
@@ -97,13 +98,14 @@
     { "id": "shop", "label": "Shop", "kind": "OTHER", "description": "TikTok Shop." },
     { "id": "video_viewer", "label": "Single videos", "kind": "VIDEO_VIEWER", "description": "A video opened from a chat, a profile or search." },
     { "id": "inbox", "label": "Inbox", "kind": "MESSAGES", "description": "Your inbox and chats. Never blocked." },
-    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's." }
+    { "id": "profile", "label": "Profiles", "kind": "PROFILE", "description": "Your profile and other people's. Never blocked." }
   ],
   "rules": [
     { "surface": "inbox", "all": ["inboxSelected"] },
     { "surface": "profile", "all": ["profileSelected"] },
     { "surface": "friends", "any": ["friendsSelected", "friendsTopSelected"] },
-    { "surface": "live", "any": ["liveSelected", "liveRoom"] },
+    { "surface": "live", "all": ["liveSelected"] },
+    { "surface": "live", "all": ["liveRoom"], "none": ["topTabs", "homeSelected", "friendsSelected", "followingSelected", "forYouSelected"], "note": "A LIVE room fills the screen with no tabs. For You and Following slip LIVE previews into the feed, built from the same ttlive_ views: those are still the feed." },
     { "surface": "shop", "all": ["shopSelected"] },
     { "surface": "explore", "all": ["exploreSelected"] },
     { "surface": "following", "all": ["followingSelected"] },

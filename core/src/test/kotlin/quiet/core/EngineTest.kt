@@ -72,6 +72,15 @@ class EngineTest {
         assertNull(see(ig, Fixtures.igHome()).cover)
     }
 
+    @Test fun `profiles are never covered, even with a mode left over from before`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("profile" to Mode.BLOCK)) }
+        val d = see(ig, Fixtures.igProfile())
+        assertEquals("instagram.profile", d.surfaceKey)
+        assertNull(d.cover)
+        settings = settings.copy(focusUntil = now + 60_000)
+        assertNull(see(ig, Fixtures.igProfile(), advanceMs = 2_000).cover)
+    }
+
     @Test fun `friend's reel from a chat plays, swiping on is stopped`() {
         see(ig, Fixtures.igThread())
         val first = see(ig, Fixtures.igViewer("friend"))
@@ -187,22 +196,86 @@ class EngineTest {
         assertEquals(listOf(UnlockKind.MINUTES), cover.unlockOffers)
     }
 
-    @Test fun `blocked home keeps the stories row uncovered`() {
+    @Test fun `blocked home stays open at the top and covers once you scroll past stories`() {
         settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
-        val cover = assertNotNull(see(ig, Fixtures.igHomeWithStories(trayBottom = 560)).cover)
+        assertNull(see(ig, Fixtures.igHomeWithStories()).cover)
+        val cover = assertNotNull(see(ig, Fixtures.igHome()).cover)
         assertEquals(CoverReason.BLOCKED, cover.reason)
-        assertEquals(550, cover.topPx)
         assertEquals(2250, cover.bottomPx)
-        assertEquals("Stories", cover.keptName)
+        assertEquals("Stories", cover.pastTop)
+        assertEquals("home", cover.backToTop)
+        // Back at the top (the Home tab scrolls up): open again.
+        assertNull(see(ig, Fixtures.igHomeWithStories()).cover)
     }
 
-    @Test fun `blocked home covers everything when keeping stories is off or the row is gone`() {
+    @Test fun `blocking stories too covers home from the top`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK) + ("stories" to Mode.BLOCK)) }
+        val cover = assertNotNull(see(ig, Fixtures.igHomeWithStories()).cover)
+        assertNull(cover.pastTop)
+        assertNull(cover.backToTop)
+        assertNotNull(see(ig, Fixtures.igStory()).cover)
+    }
+
+    @Test fun `limited or paused stories leave the top of home open`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.PAUSE) + ("stories" to Mode.LIMIT)) }
+        assertNull(see(ig, Fixtures.igHomeWithStories()).cover)
+        assertEquals(CoverReason.PAUSE, see(ig, Fixtures.igHome()).cover?.reason)
+    }
+
+    @Test fun `the top of a limited home doesn't use the allowance`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.LIMIT)) }
+        assertFalse(see(ig, Fixtures.igHomeWithStories()).chargesBudget)
+        assertTrue(see(ig, Fixtures.igHome()).chargesBudget)
+    }
+
+    @Test fun `focus closes the top of home when stories aren't plainly allowed`() {
+        settings = settings.copy(focusUntil = now + 60_000).withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNull(see(ig, Fixtures.igHomeWithStories()).cover)
+        assertEquals(CoverReason.FOCUS, see(ig, Fixtures.igHome()).cover?.reason)
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("stories" to Mode.PAUSE)) }
+        assertEquals(CoverReason.FOCUS, see(ig, Fixtures.igHomeWithStories()).cover?.reason)
+    }
+
+    @Test fun `opening a story from a blocked home drops the cover at once`() {
         settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
-        assertNull(see(ig, Fixtures.igHome()).cover!!.topPx)
-        settings = settings.withApp("instagram") { it.copy(keepVisible = emptySet()) }
-        val cover = see(ig, Fixtures.igHomeWithStories()).cover!!
-        assertNull(cover.topPx)
-        assertNull(cover.keptName)
+        assertNull(see(ig, Fixtures.igHomeWithStories()).cover)
+        assertNull(see(ig, Fixtures.igStory(), advanceMs = 100).cover)
+        // And back to the top of Home: still open.
+        assertNull(see(ig, Fixtures.igHomeWithStories(), advanceMs = 100).cover)
+    }
+
+    @Test fun `a partial read that reaches the story viewer drops the home cover`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNotNull(see(ig, Fixtures.igHome()).cover)
+        assertNull(see(ig, Fixtures.igHomeUnderStory(reachedViewer = true), advanceMs = 100).cover)
+    }
+
+    @Test fun `a partial read that misses the story viewer holds the cover and asks for another look`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNotNull(see(ig, Fixtures.igHome()).cover)
+        val held = see(ig, Fixtures.igHomeUnderStory(reachedViewer = false), advanceMs = 100)
+        assertNotNull(held.cover)
+        assertTrue(held.held)
+        // The next read gets through to the viewer: the cover goes straight away.
+        assertNull(see(ig, Fixtures.igStory(), advanceMs = 120).cover)
+    }
+
+    @Test fun `a story's unlabelled first frames don't hold the home cover`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertNotNull(see(ig, Fixtures.igHome()).cover)
+        assertNull(see(ig, Fixtures.igStoryOpening(), advanceMs = 100).cover)
+    }
+
+    @Test fun `a blank read mid-transition still holds a blocked feed's cover`() {
+        see(ig, Fixtures.igReelsTab())
+        val d = see(ig, Screen(Fixtures.IG).apply { node(cls = "FrameLayout", top = 0, bottom = 2400) }.build(), advanceMs = 300)
+        assertNotNull(d.cover)
+        assertTrue(d.held)
+    }
+
+    @Test fun `a full read is never marked held`() {
+        assertFalse(see(ig, Fixtures.igReelsTab()).held)
+        assertFalse(see(ig, Fixtures.igHome()).held)
     }
 
     @Test fun `allowed home with a stories row is not covered`() {
@@ -435,6 +508,49 @@ class EngineTest {
         settings = settings.copy(protectionOn = false)
         assertNull(see(ig, Fixtures.igReelsTab()).cover)
         settings = Settings().withApp("instagram") { it.copy(enabled = false) }
+        assertNull(see(ig, Fixtures.igReelsTab()).cover)
+    }
+
+    @Test fun `an unmanaged app still keeps to its daily limit`() {
+        settings = settings.withApp("instagram") { it.copy(enabled = false, dailyLimitMinutes = 30) }
+        today = today.copy(appSeconds = mapOf(Fixtures.IG to 29 * 60))
+        assertNull(see(ig, Fixtures.igReelsTab()).cover)
+        today = today.copy(appSeconds = mapOf(Fixtures.IG to 30 * 60))
+        assertEquals(CoverReason.APP_LIMIT, see(ig, Fixtures.igReelsTab()).cover?.reason)
+        assertNull(see(ig, Fixtures.igThread()).cover)
+    }
+
+    @Test fun `watch N more is only offered on videos`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK)) }
+        assertEquals(listOf(UnlockKind.MINUTES), see(ig, Fixtures.igHome()).cover!!.unlockOffers)
+        settings = settings.copy(unlockKind = UnlockKind.CHOOSE)
+        assertEquals(listOf(UnlockKind.MINUTES), see(ig, Fixtures.igHome()).cover!!.unlockOffers)
+    }
+
+    @Test fun `a watch N more pass doesn't open screens that aren't videos`() {
+        settings = settings.withApp("instagram") { it.copy(modes = it.modes + ("home" to Mode.BLOCK), autoSkipTarget = null) }
+        see(ig, Fixtures.igReelsTab("anna"))
+        engine.unlockVideos("instagram", 5, now)
+        assertNull(see(ig, Fixtures.igReelsTab("anna")).cover)
+        assertEquals(CoverReason.BLOCKED, see(ig, Fixtures.igHome()).cover?.reason)
+    }
+
+    @Test fun `a watch N more pass doesn't lift the daily limit off the rest of the app`() {
+        settings = settings.withApp("instagram") { it.copy(dailyLimitMinutes = 30, autoSkipTarget = null) }
+        see(ig, Fixtures.igReelsTab("anna"))
+        engine.unlockVideos("instagram", 5, now)
+        today = today.copy(appSeconds = mapOf(Fixtures.IG to 30 * 60))
+        assertEquals(CoverReason.APP_LIMIT, see(ig, Fixtures.igHome()).cover?.reason)
+    }
+
+    @Test fun `an unlock running when focus starts stops at focus`() {
+        settings = settings.withApp("instagram") { it.copy(autoSkipTarget = null) }
+        see(ig, Fixtures.igReelsTab())
+        engine.unlock("instagram", 15, now)
+        assertNull(see(ig, Fixtures.igReelsTab()).cover)
+        settings = settings.copy(focusUntil = now + 60 * 60_000)
+        assertEquals(CoverReason.FOCUS, see(ig, Fixtures.igReelsTab()).cover?.reason)
+        settings = settings.copy(focusAllowsUnlocks = true)
         assertNull(see(ig, Fixtures.igReelsTab()).cover)
     }
 

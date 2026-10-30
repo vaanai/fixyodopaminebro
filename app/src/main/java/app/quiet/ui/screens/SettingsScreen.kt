@@ -1,5 +1,7 @@
 package app.quiet.ui.screens
 
+import app.quiet.ads.AdConsent
+import android.app.Activity
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -97,7 +99,7 @@ fun unlockSummary(s: Settings): String = when {
 private fun feedsIn(mode: Mode, rules: RulesState, s: Settings): String =
     rules.apps.values
         .filter { s.app(it.app).enabled }
-        .flatMap { app -> app.surfaces.filter { s.modeFor(app.app, it.id) == mode }.map { "${app.displayName} ${it.label}" } }
+        .flatMap { app -> feeds(app).filter { s.modeFor(app.app, it.id) == mode }.map { "${app.displayName} ${it.label}" } }
         .joinToString()
 
 @Composable
@@ -134,12 +136,12 @@ fun SettingsScreen() {
             NavRow("Apps and feeds", managed.ifEmpty { "No apps managed" }, Icons.Rounded.Apps) { nav.tab(Tab.APPS) }
             NavRow(
                 "Focus schedule",
-                "Times when every feed is off.",
+                "Times when video feeds are blocked.",
                 Icons.Rounded.Bedtime,
                 value = s.focusWindows.count { it.enabled }.let { if (it == 0) "None" else "$it on" },
             ) { nav.go(Route.Focus) }
             NavRow(
-                "Other apps",
+                "Tracked apps",
                 "Count time in any app and give it a daily limit.",
                 Icons.Rounded.Timer,
                 value = s.tracked.count { it.dailyLimitMinutes > 0 }.let { if (it > 0) "$it limited" else null },
@@ -147,7 +149,7 @@ fun SettingsScreen() {
             SwitchRow(
                 "Links from other apps play",
                 s.linksPlay,
-                "A TikTok or reel someone texts you plays, even if it opens in a blocked feed. Swiping on is blocked.",
+                "A TikTok or reel someone texts you plays, even if it opens in a blocked feed. Swiping on counts like a video sent in a chat.",
                 Icons.Rounded.Link,
             ) { on -> editor.edit { it.copy(linksPlay = on) } }
         }
@@ -173,6 +175,13 @@ fun SettingsScreen() {
             NavRow("Settings lock", SettingsLock.formatWait(s.lockSeconds).let { if (s.lockSeconds > 0) "$it wait to loosen" else it }, Icons.Rounded.Lock) {
                 nav.go(Route.Section(SettingsSection.LOCK))
             }
+            StepperRow(
+                "Check-in reminders",
+                s.nudgeEveryMinutes,
+                "A gentle note after this long in any tracked app.",
+                options = listOf(0, 5, 10, 15, 20, 30, 45, 60),
+                format = { if (it == 0) "Off" else "${it}m" },
+            ) { v -> editor.edit { it.copy(nudgeEveryMinutes = v) } }
             NavRow("Start over from a preset", "Gentle, Balanced or Strict.", Icons.Rounded.RestartAlt) { choosingPreset = true }
         }
 
@@ -241,7 +250,7 @@ private fun PresetDialog(onDismiss: () -> Unit, onPick: (Preset) -> Unit) {
         title = { Text("Start over from a preset", color = c.text) },
         text = {
             Column {
-                Note("Feeds, unlocks and the allowance are reset. Your focus schedule, tracked apps and settings lock stay.")
+                Note("Feeds, unlocks and the allowance are reset. Daily app limits, your focus schedule, tracked apps and the settings lock stay.")
                 Spacer(Modifier.height(10.dp))
                 for (p in Preset.entries) ChoiceRow(p.title, p.blurb, p == picked) { picked = p }
             }
@@ -319,12 +328,25 @@ private fun UnlocksPage() {
                 StepperRow("Unlocks per day", s.unlocksPerDay, options = listOf(1, 2, 3, 4, 5, 8, 10, 20), format = { "$it" }) { v ->
                     editor.edit { it.copy(unlocksPerDay = v) }
                 }
-                StepperRow("Wait before unlocking", s.unlockWaitSeconds, "A moment to change your mind.", options = listOf(0, 5, 10, 15, 20, 30, 45, 60), format = { "${it}s" }) { v ->
+                StepperRow(
+                    "Wait before unlocking",
+                    s.unlockWaitSeconds,
+                    "A moment to change your mind.",
+                    options = listOf(0, 5, 10, 15, 20, 30, 45, 60, 90, 120),
+                    format = { if (it < 60) "${it}s" else if (it % 60 == 0) "${it / 60}m" else "${it / 60}m ${it % 60}s" },
+                ) { v ->
                     editor.edit { it.copy(unlockWaitSeconds = v) }
                 }
-                SwitchRow("Unlocks during focus", s.focusAllowsUnlocks, "Off means focus time can't be unlocked.") { on ->
-                    editor.edit { it.copy(focusAllowsUnlocks = on) }
+                if (s.unlockWaitSeconds > 0) {
+                    SwitchRow(
+                        "Skip the wait with an ad",
+                        s.adSkipsWait,
+                        if (s.adSkipsWait) "While you wait, you can watch 1 short ad instead. It opens in Quiet, never over another app."
+                        else "Unlocking always means waiting.",
+                    ) { on -> editor.edit { it.copy(adSkipsWait = on) } }
                 }
+                Spacer(Modifier.height(6.dp))
+                Note("Whether focus time can be unlocked is set under Focus schedule.")
             }
         }
     }
@@ -418,10 +440,9 @@ private fun LockPage() {
         QCard {
             Bullet("Pausing protection, or turning off an app")
             Bullet("Allowing, limiting or pausing a feed that was blocked")
-            Bullet("More unlocks, bigger ones, a shorter wait to unlock, or a new kind of unlock")
+            Bullet("More unlocks, bigger ones, a shorter wait to unlock, a new kind of unlock, or turning on the ad that skips the wait")
             Bullet("A bigger daily allowance, or a looser daily app limit")
             Bullet("Ending focus early, or deleting a focus time")
-            Bullet("Showing more of a blocked feed, like keeping Stories visible")
         }
     }
 }
@@ -445,7 +466,7 @@ private fun BlockScreenPage() {
             Note(if (s.coverStyle == CoverStyle.ABOVE_TABS) "The app's own tabs stay tappable under the cover." else "Nothing of the app shows through.")
             Spacer(Modifier.height(8.dp))
             Divider()
-            SwitchRow("Silence the video behind it", s.pauseVideo, "Pauses or mutes what's playing under the cover.", Icons.Rounded.VolumeOff) { on ->
+            SwitchRow("Silence the video behind it", s.pauseVideo, "Pauses the video under the cover. Music you're playing pauses too while the cover is up.", Icons.Rounded.VolumeOff) { on ->
                 editor.edit { it.copy(pauseVideo = on) }
             }
             SwitchRow("Haptic tap", s.haptics, "A small buzz when a block appears.", Icons.Rounded.Vibration) { on ->
@@ -453,20 +474,6 @@ private fun BlockScreenPage() {
             }
             SwitchRow("Timer pill", s.showTimerPill, "Shows time or videos left while something is unlocked or limited.") { on ->
                 editor.edit { it.copy(showTimerPill = on) }
-            }
-        }
-
-        SectionTitle("Reminders and limits")
-        QCard {
-            StepperRow(
-                "Check-in reminders",
-                s.nudgeEveryMinutes,
-                "A gentle note after this long in any tracked app.",
-                options = listOf(0, 5, 10, 15, 20, 30, 45, 60),
-                format = { if (it == 0) "Off" else "${it}m" },
-            ) { v -> editor.edit { it.copy(nudgeEveryMinutes = v) } }
-            SwitchRow("Keep chats open after limits", s.keepMessagesOpen, "Daily app limits never cover your messages.") { on ->
-                editor.edit { it.copy(keepMessagesOpen = on) }
             }
         }
     }
@@ -480,7 +487,7 @@ private fun PrivacyPage() {
     val c = Q.colors
     var confirmReset by remember { mutableStateOf(false) }
     Page {
-        ScreenHeader("Privacy and your data", "Quiet works entirely on your phone. There's no account and no server.", onBack = { nav.back() })
+        ScreenHeader("Privacy and your data", "Blocking and time tracking work entirely on your phone. There's no account and no server.", onBack = { nav.back() })
 
         SectionTitle("What Quiet reads")
         QCard {
@@ -492,7 +499,17 @@ private fun PrivacyPage() {
         SectionTitle("What Quiet keeps")
         QCard {
             Bullet("Your settings, daily time per app, and a short activity log, on this phone only.")
-            Bullet("Nothing is sent anywhere or shared with anyone. Uninstalling Quiet deletes it all.")
+            Bullet("None of it is sent anywhere or shared with anyone. Uninstalling Quiet deletes it all.")
+        }
+
+        SectionTitle("The one ad")
+        QCard {
+            Bullet("When you unlock, you can watch one short ad instead of waiting. It shows on Quiet's own screen, only when you ask for it.")
+            Bullet("Google AdMob shows it. Google collects things like your IP address and advertising ID to do that. Nothing from your settings, stats or screens goes with it.")
+            val activity = context as? Activity
+            if (activity != null && AdConsent.privacyOptionsRequired(activity)) {
+                NavRow("Ad privacy choices", "Change what you agreed to for ads.", Icons.Rounded.Policy) { AdConsent.showPrivacyOptions(activity) }
+            }
         }
 
         SectionTitle("Your data")
@@ -514,7 +531,7 @@ private fun PrivacyPage() {
             onDismissRequest = { confirmReset = false },
             containerColor = c.surface,
             title = { Text("Reset all stats?", color = c.text) },
-            text = { Text("Times, counts, streaks and the activity log are deleted. Settings stay.", color = c.textDim) },
+            text = { Text("Times, counts, streaks and the activity log are deleted. Settings stay, and today's limits keep counting.", color = c.textDim) },
             confirmButton = {
                 TextButton(onClick = {
                     store.clearStats()

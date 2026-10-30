@@ -1,5 +1,7 @@
 package quiet.core.settings
 
+import java.time.DayOfWeek
+
 /** Decides whether a settings change makes Quiet easier to get past. The [SettingsLock] makes those wait. */
 object Strictness {
     private fun severity(m: Mode) = when (m) {
@@ -27,6 +29,7 @@ object Strictness {
         if (new.unlockMinutes > old.unlockMinutes) return true
         if (UnlockKind.VIDEOS in newOffers && new.unlockVideos > old.unlockVideos) return true
         if (new.unlockWaitSeconds < old.unlockWaitSeconds) return true
+        if (!old.adSkipsWait && new.adSkipsWait) return true
         if (new.unlocksPerDay > old.unlocksPerDay) return true
         if (new.pauseSeconds < old.pauseSeconds) return true
         if (new.pauseMinutes > old.pauseMinutes) return true
@@ -34,7 +37,8 @@ object Strictness {
         if (!old.keepMessagesOpen && new.keepMessagesOpen) return true
         if (!old.linksPlay && new.linksPlay) return true
         if (new.focusUntil < old.focusUntil) return true
-        if (old.focusWindows.any { w -> w.enabled && w !in new.focusWindows }) return true
+        if (old.pauseVideo && !new.pauseVideo) return true
+        if (focusShrinks(old.focusWindows, new.focusWindows)) return true
         for (t in old.tracked) {
             val n = new.tracked.firstOrNull { it.packageName == t.packageName }
             if (limit(n?.dailyLimitMinutes ?: 0) > limit(t.dailyLimitMinutes)) return true
@@ -45,12 +49,24 @@ object Strictness {
             val b = new.app(id)
             if (a.enabled && !b.enabled) return true
             if (limit(b.dailyLimitMinutes) > limit(a.dailyLimitMinutes)) return true
-            if (b.keepVisible.any { it !in a.keepVisible }) return true
             for (surface in a.modes.keys + b.modes.keys) {
                 if (severity(new.modeFor(id, surface)) < severity(old.modeFor(id, surface))) return true
             }
             for (origin in Origin.entries) {
                 if (swipes(new.viewerSwipesFor(id, origin)) > swipes(old.viewerSwipesFor(id, origin))) return true
+            }
+        }
+        return false
+    }
+
+    /** True when some minute of the week that [old] covered isn't covered by [new] any more. */
+    private fun focusShrinks(old: List<FocusWindow>, new: List<FocusWindow>): Boolean {
+        val was = old.filter { it.enabled }
+        if (was.isEmpty() || was.all { it in new }) return false
+        val now = new.filter { it.enabled }
+        for (day in DayOfWeek.entries) {
+            for (minute in 0 until 24 * 60) {
+                if (was.any { it.contains(day, minute) } && now.none { it.contains(day, minute) }) return true
             }
         }
         return false

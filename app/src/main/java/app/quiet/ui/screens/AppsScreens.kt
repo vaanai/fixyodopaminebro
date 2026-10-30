@@ -75,17 +75,31 @@ private val Mode.done: String
         Mode.BLOCK -> "blocked"
     }
 
-/** One-line summary of an app's setup: "Reels tab blocked, Home feed blocked (Stories stay)". */
+/** Kinds that are never blocked, so they get no Allow/Block choice: chats, profiles, and single videos (set by swipes). */
+private val NOT_FEEDS = setOf(SurfaceKind.MESSAGES, SurfaceKind.PROFILE, SurfaceKind.VIDEO_VIEWER)
+
+/** The surfaces that get an Allow, Pause, Limit or Block choice. */
+fun feeds(rules: AppRules) = rules.surfaces.filter { it.kind !in NOT_FEEDS }
+
+/** One-line summary of an app's setup: "Reels tab blocked, Home feed blocked past Stories". */
 fun summary(rules: AppRules, s: Settings): String {
     val a = s.app(rules.app)
-    if (!a.enabled) return "Not managed. Time is still counted."
-    val blocked = rules.surfaces.filter { it.kind != SurfaceKind.MESSAGES && it.kind != SurfaceKind.VIDEO_VIEWER }
+    if (!a.enabled) return if (a.dailyLimitMinutes > 0) "Not managed. Daily limit ${a.dailyLimitMinutes}m." else "Not managed. Time is still counted."
+    val blocked = feeds(rules)
         .filter { s.modeFor(rules.app, it.id) != Mode.ALLOW }
         .joinToString { surface ->
-            val kept = surface.keep?.takeIf { s.keepsVisible(rules.app, surface.id) }?.let { " (${it.name} stay)" }.orEmpty()
+            val top = surface.openTop?.takeIf { t -> t.surface.let { to -> to == null || s.modeFor(rules.app, to) != Mode.BLOCK } }
+            val kept = top?.let { " past ${it.name}" }.orEmpty()
             "${surface.label} ${s.modeFor(rules.app, surface.id).done}$kept"
         }
     return blocked.ifEmpty { "Everything allowed" }
+}
+
+/** "A", "A and B", "A, B and C". */
+fun joinWithAnd(items: List<String>): String = when (items.size) {
+    0 -> ""
+    1 -> items[0]
+    else -> items.dropLast(1).joinToString() + " and " + items.last()
 }
 
 /** Where single videos can be opened from in this app, so the swipe settings only list real places. */
@@ -172,13 +186,12 @@ fun AppDetailScreen(appId: String) {
     Page {
         ScreenHeader(rules.displayName, onBack = { nav.back() })
         QCard {
-            SwitchRow("Manage ${rules.displayName}", a.enabled, "Off means Quiet only counts time here.") { on -> update { it.copy(enabled = on) } }
+            SwitchRow("Manage ${rules.displayName}", a.enabled, "Off means Quiet only counts time here, and keeps to the daily limit if you set one.") { on -> update { it.copy(enabled = on) } }
         }
 
         SectionTitle("Feeds")
         QCard {
-            val feeds = rules.surfaces.filter { it.kind != SurfaceKind.MESSAGES && it.kind != SurfaceKind.VIDEO_VIEWER }
-            feeds.forEachIndexed { i, surface ->
+            feeds(rules).forEachIndexed { i, surface ->
                 if (i > 0) {
                     Spacer(Modifier.height(10.dp))
                     Divider()
@@ -193,11 +206,16 @@ fun AppDetailScreen(appId: String) {
                 Segmented(Mode.entries, mode, { it.label }) { m -> update { it.copy(modes = it.modes + (surface.id to m)) } }
                 Spacer(Modifier.height(6.dp))
                 Text(mode.explain(settings.budgetMinutes, settings.pauseSeconds, settings.pauseMinutes), style = MaterialTheme.typography.bodySmall, color = c.textDim)
-                val keep = surface.keep
-                if (keep != null && mode != Mode.ALLOW) {
-                    SwitchRow("Keep ${keep.name} visible", surface.id in a.keepVisible, keep.description) { on ->
-                        update { it.copy(keepVisible = if (on) it.keepVisible + surface.id else it.keepVisible - surface.id) }
-                    }
+                val top = surface.openTop
+                if (top != null && mode != Mode.ALLOW) {
+                    Spacer(Modifier.height(4.dp))
+                    val topBlocked = top.surface?.let { settings.modeFor(appId, it) == Mode.BLOCK } == true
+                    Text(
+                        if (topBlocked) "${top.name} are blocked too, so all of ${surface.label} is covered."
+                        else "The top, with ${top.name}, stays open. The block starts when you scroll down past ${top.name}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textDim,
+                    )
                 }
             }
         }
@@ -221,11 +239,12 @@ fun AppDetailScreen(appId: String) {
             }
         }
 
-        if (rules.nav.isNotEmpty()) {
-            SectionTitle("When you land on a blocked feed")
+        val videoFeeds = rules.surfaces.filter { it.kind == SurfaceKind.VIDEO_FEED }
+        if (rules.nav.isNotEmpty() && videoFeeds.isNotEmpty()) {
+            SectionTitle("When a blocked video feed opens")
             QCard {
                 Text(
-                    "Cover it, or jump straight to another tab. Handy for apps that open on the feed.",
+                    "Cover it, or jump straight to another tab. Handy for apps that open on the feed. Applies to ${joinWithAnd(videoFeeds.map { it.label })}.",
                     style = MaterialTheme.typography.bodySmall,
                     color = c.textDim,
                 )
@@ -244,10 +263,17 @@ fun AppDetailScreen(appId: String) {
             StepperRow(
                 "Whole app",
                 a.dailyLimitMinutes,
-                subtitle = if (settings.keepMessagesOpen) "Chats stay open after the limit." else "Covers chats too.",
+                subtitle = "Once you've spent this long in ${rules.displayName} today, all of it is covered until midnight.",
                 options = listOf(0, 10, 15, 20, 30, 45, 60, 90, 120, 180),
                 format = { if (it == 0) "Off" else "${it}m" },
             ) { n -> update { it.copy(dailyLimitMinutes = n) } }
+            if (a.dailyLimitMinutes > 0) {
+                SwitchRow(
+                    "Chats stay open",
+                    settings.keepMessagesOpen,
+                    if (settings.keepMessagesOpen) "Chats still open after the limit, though videos sent in them don't. This one setting covers all your apps." else "The limit covers chats too. This one setting covers all your apps.",
+                ) { on -> editor.edit { it.copy(keepMessagesOpen = on) } }
+            }
         }
 
         SectionTitle("Detection")

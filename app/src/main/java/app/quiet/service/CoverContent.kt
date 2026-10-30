@@ -42,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,7 +71,7 @@ private fun copyFor(c: Cover): CoverCopy = when (c.reason) {
     CoverReason.BLOCKED -> CoverCopy(
         Icons.Rounded.Block,
         "${c.surfaceLabel} is off",
-        if (c.keptName != null) "${c.keptName} are still up there. Messages and profiles work too."
+        if (c.pastTop != null) "${c.pastTop} are still open at the top. Scrolling on down is the endless part."
         else "Messages, profiles and the people you follow are still here. The endless part isn't.",
     )
     CoverReason.BUDGET_DONE -> CoverCopy(
@@ -81,7 +82,7 @@ private fun copyFor(c: Cover): CoverCopy = when (c.reason) {
     CoverReason.FOCUS -> CoverCopy(
         Icons.Rounded.Bedtime,
         "Focus time",
-        "Feeds are off while focus is on. Chats still work.",
+        "This feed is blocked while focus is on. Chats still work.",
     )
     CoverReason.SWIPE_LIMIT -> CoverCopy(
         Icons.Rounded.Spa,
@@ -109,8 +110,6 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
     val c = Q.colors
     val cover = model.cover
     val copy = copyFor(cover)
-    // Under a kept area (the Stories row) there's no status bar to clear, and less room.
-    val compact = cover.topPx != null
     Box(
         Modifier
             .fillMaxSize()
@@ -131,7 +130,7 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 28.dp)
-                    .padding(top = if (compact) 24.dp else 72.dp, bottom = 28.dp),
+                    .padding(top = 72.dp, bottom = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -139,13 +138,13 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     BreathRing(cover.pauseSeconds)
                 } else {
                     Box(
-                        Modifier.size(if (compact) 56.dp else 72.dp).clip(CircleShape).background(c.accentDim),
+                        Modifier.size(72.dp).clip(CircleShape).background(c.accentDim),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(copy.icon, null, tint = c.accent, modifier = Modifier.size(if (compact) 26.dp else 34.dp))
+                        Icon(copy.icon, null, tint = c.accent, modifier = Modifier.size(34.dp))
                     }
                 }
-                Spacer(Modifier.height(if (compact) 18.dp else 28.dp))
+                Spacer(Modifier.height(28.dp))
                 Text(
                     copy.title,
                     style = MaterialTheme.typography.headlineLarge,
@@ -164,16 +163,16 @@ fun CoverContent(model: CoverModel, actions: CoverActions) {
                     Spacer(Modifier.height(16.dp))
                     Text(it, style = MaterialTheme.typography.labelMedium, color = c.accent, textAlign = TextAlign.Center)
                 }
-                Spacer(Modifier.height(if (compact) 24.dp else 36.dp))
-                Buttons(cover, actions)
+                Spacer(Modifier.height(36.dp))
+                Buttons(model, actions)
             }
         }
     }
 }
 
 @Composable
-private fun Buttons(cover: Cover, actions: CoverActions) {
-    val c = Q.colors
+private fun Buttons(model: CoverModel, actions: CoverActions) {
+    val cover = model.cover
     Column(
         Modifier.fillMaxWidth().widthIn(max = 420.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -195,15 +194,30 @@ private fun Buttons(cover: Cover, actions: CoverActions) {
                 CoverButton("Not now", primary = true) { actions.onLeave(cover) }
             }
             CoverReason.SWIPE_LIMIT -> {
-                CoverButton("Go back", primary = true, icon = Icons.AutoMirrored.Rounded.ArrowBack) { actions.onBack(cover) }
+                // Over a feed, Back would leave the app: the way out is a tab (TikTok's Inbox).
+                val way = cover.navTargets.firstOrNull { it.id == cover.safeTarget }?.takeIf { cover.overFeed }
+                if (way != null) {
+                    CoverButton("Go to ${way.label}", primary = true) { actions.onNav(cover, way.id) }
+                    if (cover.fromLink) {
+                        val label = model.returnTo?.let { "Back to $it" } ?: "Back to where the link came from"
+                        CoverButton(label, primary = false, icon = Icons.AutoMirrored.Rounded.ArrowBack) { actions.onBack(cover) }
+                    }
+                } else {
+                    CoverButton("Go back", primary = true, icon = Icons.AutoMirrored.Rounded.ArrowBack) { actions.onBack(cover) }
+                }
             }
             else -> {
-                // No "Go to Home feed" while you're on the Home feed.
-                val targets = cover.navTargets.filter { it.id != cover.surface }.take(2)
-                targets.forEachIndexed { i, t ->
-                    CoverButton("Go to ${t.label}", primary = i == 0) { actions.onNav(cover, t.id) }
+                // Scrolled past the open top (Stories): the first way out is back up to it.
+                val back = cover.backToTop
+                if (back != null) {
+                    CoverButton("Back up to ${cover.pastTop}", primary = true) { actions.onNav(cover, back) }
                 }
-                if (targets.isEmpty()) CoverButton("Go back", primary = true) { actions.onBack(cover) }
+                // No "Go to Home feed" while you're on the Home feed.
+                val targets = cover.navTargets.filter { it.id != cover.surface && it.id != back }.take(if (back != null) 1 else 2)
+                targets.forEachIndexed { i, t ->
+                    CoverButton("Go to ${t.label}", primary = i == 0 && back == null) { actions.onNav(cover, t.id) }
+                }
+                if (targets.isEmpty() && back == null) CoverButton("Go back", primary = true) { actions.onBack(cover) }
             }
         }
         if (cover.reason != CoverReason.PAUSE) {
@@ -211,25 +225,35 @@ private fun Buttons(cover: Cover, actions: CoverActions) {
         }
         if (cover.canUnlock) {
             Spacer(Modifier.height(6.dp))
-            UnlockButton(cover, actions)
+            UnlockButton(model, actions)
         }
     }
 }
 
 /**
  * "I want to watch a bit" names exactly what an unlock gives. Tapping it starts the wait; after the
- * wait you confirm, or pick when the user chose to decide each time.
+ * wait you confirm, or pick when the user chose to decide each time. During the wait, one ad on
+ * Quiet's own screen is the optional quicker way through.
  */
 @Composable
-private fun UnlockButton(cover: Cover, actions: CoverActions) {
+private fun UnlockButton(model: CoverModel, actions: CoverActions) {
     val c = Q.colors
-    var waiting by remember { mutableStateOf(false) }
-    var remaining by remember { mutableIntStateOf(cover.unlockWaitSeconds) }
-    LaunchedEffect(waiting) {
+    val cover = model.cover
+    // The wait runs from when it was started, not from when this cover was drawn: leaving and coming back,
+    // or opening the ad screen and backing out, carries on where it was.
+    var startedAt by remember(model.waitSkipped, model.waitStartedAt) { mutableLongStateOf(model.waitStartedAt ?: 0L) }
+    val waiting = model.waitSkipped || startedAt > 0L
+    fun leftAt(now: Long): Int =
+        if (model.waitSkipped) 0 else (cover.unlockWaitSeconds - ((now - startedAt) / 1000).toInt()).coerceIn(0, cover.unlockWaitSeconds)
+    var remaining by remember(model.waitSkipped, model.waitStartedAt) {
+        mutableIntStateOf(if (waiting) leftAt(System.currentTimeMillis()) else cover.unlockWaitSeconds)
+    }
+    LaunchedEffect(waiting, startedAt) {
         if (!waiting) return@LaunchedEffect
-        while (remaining > 0) {
-            delay(1000)
-            remaining--
+        while (true) {
+            remaining = leftAt(System.currentTimeMillis())
+            if (remaining == 0) break
+            delay(250)
         }
     }
     val offers = cover.unlockOffers
@@ -246,7 +270,7 @@ private fun UnlockButton(cover: Cover, actions: CoverActions) {
             }
         }
         Text(
-            left,
+            if (model.waitSkipped) "Wait skipped · $left" else left,
             style = MaterialTheme.typography.labelMedium,
             color = c.textFaint,
             textAlign = TextAlign.Center,
@@ -268,10 +292,14 @@ private fun UnlockButton(cover: Cover, actions: CoverActions) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .clickable(enabled = !waiting) {
-                waiting = true
+                startedAt = System.currentTimeMillis()
+                actions.onWaitStarted(cover)
             }
             .padding(vertical = 14.dp),
     )
+    if (waiting && remaining > 0 && model.adSkip) {
+        CoverButton("Skip the wait with 1 short ad", primary = false) { actions.onSkipWaitWithAd(cover) }
+    }
 }
 
 @Composable

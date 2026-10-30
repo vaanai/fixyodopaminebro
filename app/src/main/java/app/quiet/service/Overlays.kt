@@ -45,9 +45,25 @@ interface CoverActions {
     /** [videos] true for "watch N more", false for "N minutes". */
     fun onUnlock(cover: Cover, videos: Boolean)
     fun onContinue(cover: Cover)
+    /** Opens Quiet's own screen to watch one ad instead of the rest of the unlock wait. */
+    fun onSkipWaitWithAd(cover: Cover)
+    /** The unlock wait began; remembered so the wait isn't restarted when the cover comes back. */
+    fun onWaitStarted(cover: Cover)
 }
 
-data class CoverModel(val cover: Cover, val accent: Accent, val todayLine: String?)
+data class CoverModel(
+    val cover: Cover,
+    val accent: Accent,
+    val todayLine: String?,
+    /** Offer one ad as the quicker way through the unlock wait. */
+    val adSkip: Boolean = false,
+    /** An ad was just watched for this app: no wait, go straight to the unlock choices. */
+    val waitSkipped: Boolean = false,
+    /** Name of the app a link came from, for "Back to Messages". */
+    val returnTo: String? = null,
+    /** When this app's unlock wait was started (epoch ms), if it was and hasn't been used. */
+    val waitStartedAt: Long? = null,
+)
 
 data class PillModel(val text: String, val urgent: Boolean, val accent: Accent)
 
@@ -109,22 +125,8 @@ class Overlays(private val service: AccessibilityService, private val actions: C
         coverState.value = null
     }
 
-    /** Covers start at the top, or below a kept area like the Stories row, and stop at the tab bar or the screen's bottom. */
-    private fun frameFor(cover: Cover): Frame {
-        val top = cover.topPx?.takeIf { it > 0 } ?: return Frame(0, cover.bottomPx)
-        val bottom = cover.bottomPx ?: screenHeight()
-        val minHeight = (service.resources.displayMetrics.density * MIN_COVER_DP).toInt()
-        // Too little room under the kept area: cover it all rather than squeeze the block screen.
-        if (bottom - top < minHeight) return Frame(0, cover.bottomPx)
-        return Frame(top, bottom - top)
-    }
-
-    @Suppress("DEPRECATION")
-    private fun screenHeight(): Int = if (android.os.Build.VERSION.SDK_INT >= 30) {
-        wm.maximumWindowMetrics.bounds.height()
-    } else {
-        android.util.DisplayMetrics().also { wm.defaultDisplay.getRealMetrics(it) }.heightPixels
-    }
+    /** Covers start at the top and stop at the tab bar or the screen's bottom. */
+    private fun frameFor(cover: Cover): Frame = Frame(0, cover.bottomPx)
 
     fun showPill(model: PillModel?) {
         if (model == null) {
@@ -219,9 +221,5 @@ class Overlays(private val service: AccessibilityService, private val actions: C
             wm.removeViewImmediate(view)
         } catch (_: Exception) {
         }
-    }
-
-    private companion object {
-        const val MIN_COVER_DP = 320
     }
 }

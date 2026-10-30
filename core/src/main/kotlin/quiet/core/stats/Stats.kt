@@ -31,6 +31,8 @@ data class DayStats(
     /** Times a swipe past a friend's video was stopped. */
     val swipesStopped: Int = 0,
     val unlocks: Int = 0,
+    /** Rewarded ads watched to the end (each one skips one unlock's wait). */
+    val adsWatched: Int = 0,
     /** Times you chose to leave at a pause screen. */
     val pausesLeft: Int = 0,
     /** Times you chose to continue at a pause screen. */
@@ -131,6 +133,7 @@ object StatsCodec {
         put("skips", d.skips)
         put("swipesStopped", d.swipesStopped)
         put("unlocks", d.unlocks)
+        put("adsWatched", d.adsWatched)
         put("pausesLeft", d.pausesLeft)
         put("pausesContinued", d.pausesContinued)
     }
@@ -150,6 +153,7 @@ object StatsCodec {
         skips = o.optInt("skips"),
         swipesStopped = o.optInt("swipesStopped"),
         unlocks = o.optInt("unlocks"),
+        adsWatched = o.optInt("adsWatched"),
         pausesLeft = o.optInt("pausesLeft"),
         pausesContinued = o.optInt("pausesContinued"),
     )

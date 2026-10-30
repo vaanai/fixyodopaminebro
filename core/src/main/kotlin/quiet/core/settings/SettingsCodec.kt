@@ -16,6 +16,7 @@ object SettingsCodec {
         put("unlockMinutes", s.unlockMinutes)
         put("unlockVideos", s.unlockVideos)
         put("unlockWaitSeconds", s.unlockWaitSeconds)
+        put("adSkipsWait", s.adSkipsWait)
         put("unlocksPerDay", s.unlocksPerDay)
         put("pauseSeconds", s.pauseSeconds)
         put("pauseMinutes", s.pauseMinutes)
@@ -74,6 +75,8 @@ object SettingsCodec {
             unlockMinutes = o.optInt("unlockMinutes", d.unlockMinutes),
             unlockVideos = if (legacyVideos <= 0) d.unlockVideos else legacyVideos,
             unlockWaitSeconds = o.optInt("unlockWaitSeconds", d.unlockWaitSeconds),
+            // Settings saved before the ad existed keep it off: turning it on counts as loosening.
+            adSkipsWait = o.optBoolean("adSkipsWait", false),
             unlocksPerDay = o.optInt("unlocksPerDay", d.unlocksPerDay),
             pauseSeconds = o.optInt("pauseSeconds", d.pauseSeconds),
             pauseMinutes = o.optInt("pauseMinutes", d.pauseMinutes),
@@ -115,7 +118,6 @@ object SettingsCodec {
         put("viewerSwipes", JSONObject().apply { a.viewerSwipes.forEach { (k, v) -> put(k.name, v) } })
         put("dailyLimitMinutes", a.dailyLimitMinutes)
         put("autoSkipTarget", a.autoSkipTarget ?: "")
-        put("keepVisible", JSONArray().apply { a.keepVisible.sorted().forEach { put(it) } })
     }
 
     private fun decodeApp(id: String, o: JSONObject): AppSettings {
@@ -124,14 +126,16 @@ object SettingsCodec {
         o.optJSONObject("modes")?.let { m -> for (k in m.keys()) enumOrNull<Mode>(m.getString(k))?.let { modes[k] = it } }
         val swipes = mutableMapOf<Origin, Int>()
         o.optJSONObject("viewerSwipes")?.let { m -> for (k in m.keys()) enumOrNull<Origin>(k)?.let { swipes[it] = m.getInt(k) } }
+        // Before 2.2, "Block all of it" on Instagram Home was a blocked Home with the Stories row not kept.
+        // Home now stays open at the top unless Stories is blocked, so that choice becomes blocking Stories.
+        val keptStories = o.optJSONArray("keepVisible")?.let { arr -> (0 until arr.length()).any { arr.optString(it) == "home" } }
+        if (id == "instagram" && keptStories == false && modes["home"] == Mode.BLOCK) modes["stories"] = Mode.BLOCK
         return AppSettings(
             enabled = o.optBoolean("enabled", d.enabled),
             modes = d.modes + modes,
             viewerSwipes = d.viewerSwipes + swipes,
             dailyLimitMinutes = o.optInt("dailyLimitMinutes", d.dailyLimitMinutes),
             autoSkipTarget = if (o.has("autoSkipTarget")) o.optString("autoSkipTarget").ifBlank { null } else d.autoSkipTarget,
-            keepVisible = o.optJSONArray("keepVisible")?.let { arr -> (0 until arr.length()).map { arr.getString(it) }.toSet() }
-                ?: d.keepVisible,
         )
     }
 

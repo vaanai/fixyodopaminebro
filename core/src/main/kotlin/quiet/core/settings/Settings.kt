@@ -48,7 +48,10 @@ enum class UnlockKind {
     /** Offer both and pick each time. */
     CHOOSE;
 
-    /** The unlocks to offer. Whole-app limits can only unlock by time: videos can't be counted there. */
+    /**
+     * The unlocks to offer. Whole-app limits and screens that aren't videos (Explore, LIVE, a feed of
+     * posts) can only unlock by time: videos can't be counted there.
+     */
     fun offers(appLimit: Boolean = false): List<UnlockKind> = when {
         appLimit -> listOf(MINUTES)
         this == CHOOSE -> listOf(VIDEOS, MINUTES)
@@ -68,8 +71,6 @@ data class AppSettings(
     val dailyLimitMinutes: Int = 0,
     /** Nav target to jump to when you land on a blocked feed, or null to just cover it. */
     val autoSkipTarget: String? = null,
-    /** Surfaces whose keep area (the rules' `keep`, e.g. Instagram's Stories row) stays uncovered when blocked. */
-    val keepVisible: Set<String> = emptySet(),
 )
 
 data class FocusWindow(
@@ -113,7 +114,10 @@ data class Settings(
     val unlockVideos: Int = 5,
     /** Length of an "N minutes" unlock. Daily app limits always unlock this way. */
     val unlockMinutes: Int = 5,
-    val unlockWaitSeconds: Int = 15,
+    /** The free wait before an unlock. Long enough that one short ad is the quicker way through. */
+    val unlockWaitSeconds: Int = 60,
+    /** During the wait you can watch one short rewarded ad instead. The wait always works too. */
+    val adSkipsWait: Boolean = true,
     val unlocksPerDay: Int = 3,
 
     val pauseSeconds: Int = 10,
@@ -166,9 +170,6 @@ data class Settings(
 
     fun canUnlock(focusActive: Boolean): Boolean =
         unlocksEnabled && (!focusActive || focusAllowsUnlocks)
-
-    /** Whether the rules' keep area for [surface] (e.g. the Stories row on Home) stays visible when it's covered. */
-    fun keepsVisible(app: String, surface: String): Boolean = surface in app(app).keepVisible
 }
 
 object Defaults {
@@ -209,8 +210,6 @@ object Defaults {
             ),
             viewerSwipes = friendlyViewer,
             autoSkipTarget = "messages",
-            // Blocking Home keeps the Stories row unless you turn that off.
-            keepVisible = setOf("home"),
         )
         "tiktok" -> AppSettings(
             enabled = true,
@@ -233,8 +232,18 @@ object Defaults {
         else -> AppSettings(enabled = true)
     }
 
-    /** Ready-made starting points offered during onboarding. */
-    fun preset(name: Preset, base: Settings = Settings()): Settings = when (name) {
+    /**
+     * Ready-made starting points offered during onboarding and in Settings. Feed modes, unlocks and the
+     * allowance come from the preset; daily app limits and apps the preset doesn't cover stay as they were.
+     */
+    fun preset(name: Preset, base: Settings = Settings()): Settings {
+        val picked = presetOnly(name, base)
+        val apps = base.apps.toMutableMap()
+        for ((id, a) in picked.apps) apps[id] = a.copy(dailyLimitMinutes = base.apps[id]?.dailyLimitMinutes ?: a.dailyLimitMinutes)
+        return picked.copy(apps = apps)
+    }
+
+    private fun presetOnly(name: Preset, base: Settings): Settings = when (name) {
         Preset.GENTLE -> base.copy(
             apps = mapOf(
                 "instagram" to appSettings("instagram").copy(modes = appSettings("instagram").modes + ("reels" to Mode.LIMIT)),
@@ -247,6 +256,7 @@ object Defaults {
             budgetMinutes = 30,
             unlocksEnabled = true,
             unlocksPerDay = 5,
+            unlockWaitSeconds = 30,
         )
         Preset.BALANCED -> base.copy(
             apps = mapOf(
@@ -257,6 +267,7 @@ object Defaults {
             budgetMinutes = 20,
             unlocksEnabled = true,
             unlocksPerDay = 3,
+            unlockWaitSeconds = 60,
         )
         Preset.STRICT -> base.copy(
             apps = mapOf(
@@ -269,7 +280,7 @@ object Defaults {
             budgetMinutes = 10,
             unlocksEnabled = false,
             unlocksPerDay = 1,
-            unlockWaitSeconds = 30,
+            unlockWaitSeconds = 120,
         )
     }
 }

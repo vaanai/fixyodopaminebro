@@ -22,6 +22,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.content.ContextCompat
+import app.quiet.ads.SkipWaitActivity
 import app.quiet.BuildConfig
 import app.quiet.MainActivity
 import app.quiet.QuietApp
@@ -38,6 +39,7 @@ import quiet.core.engine.Decision
 import quiet.core.engine.Engine
 import quiet.core.engine.EngineInput
 import quiet.core.engine.EventType
+import quiet.core.engine.SavedPasses
 import quiet.core.engine.ScrollInfo
 import quiet.core.rules.AppRules
 import quiet.core.stats.StatsMath
@@ -82,8 +84,13 @@ class QuietService : AccessibilityService(), CoverActions {
     private var dumpRequested = false
     private var lastLoggedSurface: String? = null
     private val genericUnlocks = mutableMapOf<String, Long>()
+    private val skippedWaits = mutableMapOf<String, Long>()
+    /** When an unlock wait was started, per app, so leaving the cover (or the ad screen) doesn't restart it. */
+    private val waitStarts = mutableMapOf<String, Long>()
     private var receiversRegistered = false
     private var debugReceiverRegistered = false
+    private var lastCoverTapAt = 0L
+    private var keptPasses = SavedPasses()
 
     private val evalRunnable = Runnable { evaluateSafely() }
     private val tickRunnable = object : Runnable {
@@ -100,6 +107,7 @@ class QuietService : AccessibilityService(), CoverActions {
         instance = this
         overlays = Overlays(this, this)
         media = MediaPauser(this).also { it.recover() }
+        restorePasses()
         registerReceivers()
         lastTick = System.currentTimeMillis()
         main.post(tickRunnable)
@@ -149,7 +157,13 @@ class QuietService : AccessibilityService(), CoverActions {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val e = event ?: return
-        val pkg = e.packageName?.toString() ?: return
+        val pkg = e.packageName?.toString()
+        if (pkg == null) {
+            // Window changes (an app closing to the home screen, a window opening on top) come with no
+            // package. They're often the only sign the screen under a cover has changed.
+            if (e.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED && (lastRules != null || lastDecision.cover != null)) scheduleEval()
+            return
+        }
         if (pkg == packageName) return
         try {
             val supported = store.rules.value.forPackage(pkg) != null
@@ -190,6 +204,7 @@ class QuietService : AccessibilityService(), CoverActions {
         lastEvalAt = System.currentTimeMillis()
         try {
             evaluate()
+            keepPasses()
         } catch (t: Throwable) {
             // Fail open: never leave a cover up because of a bug.
             Log.e(TAG, "evaluate failed", t)
@@ -203,6 +218,20 @@ class QuietService : AccessibilityService(), CoverActions {
         val fg = currentForeground()
         onForeground(fg, now)
         if (!screenOn) return
+        // On the lock screen nothing is covered or muted; unlocking looks again.
+        if (isLocked()) {
+            overlays.hideAll()
+            media.release()
+            return
+        }
+        // Nothing is ever drawn over Quiet's own screens: above all the ad screen and the ad it shows.
+        if (SkipWaitActivity.isStarting || ownScreenActive()) {
+            overlays.hideAll()
+            media.release()
+            // The Today screen shows unlocks and passes from this; keep it current while Quiet is in front.
+            LiveState.update { it.copy(engine = engine.snapshot()) }
+            return
+        }
         val settings = store.settings.value
         val rules = fg?.let { store.rules.value.forPackage(it) }
 
@@ -221,7 +250,7 @@ class QuietService : AccessibilityService(), CoverActions {
 
         val root = findRoot(fg)
         val (w, h) = screenSize()
-        val result = root?.let { reader.read(it, fg, w, h) }
+        val result = root?.let { reader.read(it, fg, w, h, rules.tabWords) }
         val reading = result?.let { Detector.read(rules, it.tree) } ?: Reading.unknown(rules.app)
         val scroll = lastScroll?.takeIf { lastScrollPkg == fg }
         val decision = engine.evaluate(
@@ -234,7 +263,7 @@ class QuietService : AccessibilityService(), CoverActions {
         }
         if (settings.verboseLogging && reading.surface != lastLoggedSurface) {
             lastLoggedSurface = reading.surface
-            Log.i(TAG, "screen ${rules.app}.${reading.surface} kind=${reading.kind} signals=${reading.signals} cover=${decision.cover?.reason} nodes=${result?.tree?.nodes?.size} truncated=${reading.truncated}")
+            Log.i(TAG, "screen ${rules.app}.${reading.surface} kind=${reading.kind} signals=${reading.signals} cover=${decision.cover?.reason} held=${decision.held} nodes=${result?.tree?.nodes?.size} truncated=${reading.truncated}")
         }
         if (dumpRequested && result != null) {
             dumpRequested = false
@@ -256,7 +285,18 @@ class QuietService : AccessibilityService(), CoverActions {
         val s = store.settings.value
         val cover = d.cover
         if (cover != null) {
-            overlays.showCover(CoverModel(cover, s.accent, todayLine()))
+            val now = System.currentTimeMillis()
+            overlays.showCover(
+                CoverModel(
+                    cover,
+                    s.accent,
+                    todayLine(),
+                    adSkip = s.adSkipsWait,
+                    waitSkipped = (skippedWaits[cover.app] ?: 0L) > now,
+                    waitStartedAt = waitStarts[cover.app]?.takeIf { now - it < SKIPPED_WAIT_KEEP_MS },
+                    returnTo = cameFrom?.takeIf { cover.fromLink }?.let { appLabel(it) },
+                ),
+            )
             if (s.pauseVideo) media.engage()
             overlays.showPill(null)
         } else {
@@ -265,6 +305,8 @@ class QuietService : AccessibilityService(), CoverActions {
             overlays.showPill(d.pill?.let { PillModel(it.text, it.urgent, s.accent) })
         }
         d.command?.let { execute(it, rules, result) }
+        // A held decision is a guess about a screen that couldn't be read; look again shortly.
+        if (d.held) main.postDelayed({ scheduleEval() }, HELD_RECHECK_MS)
         if (d.events.isNotEmpty()) {
             store.record(d.events) { id -> store.rules.value.apps[id]?.displayName ?: id }
             if (s.haptics && d.events.any { it.type == EventType.COVER_SHOWN }) buzz()
@@ -404,13 +446,30 @@ class QuietService : AccessibilityService(), CoverActions {
 
     // ---- cover buttons ----
 
+    /**
+     * One tap, one action. A tap that seems to do nothing gets tapped again, and a second Back on top of
+     * the first leaves the app.
+     */
+    private fun tapTaken(): Boolean {
+        val t = SystemClock.uptimeMillis()
+        if (t - lastCoverTapAt < COVER_TAP_GAP_MS) return false
+        lastCoverTapAt = t
+        return true
+    }
+
     override fun onNav(cover: Cover, target: String) {
+        if (!tapTaken()) return
+        navTo(target)
+    }
+
+    /** Taps the app's own tab for [target]; Back when it can't be found on this screen. */
+    private fun navTo(target: String) {
         val rules = lastRules
         val fg = foreground
         val clicked = if (rules != null && fg != null) {
             findRoot(fg)?.let { root ->
                 val (w, h) = screenSize()
-                clickNav(rules, reader.read(root, fg, w, h), target)
+                clickNav(rules, reader.read(root, fg, w, h, rules.tabWords), target)
             } ?: false
         } else {
             false
@@ -424,18 +483,56 @@ class QuietService : AccessibilityService(), CoverActions {
     }
 
     override fun onBack(cover: Cover) {
+        if (!tapTaken()) return
         // Inside an app a link opened, Back often has nowhere to go: return to the app the link came from.
         val launch = cameFrom?.takeIf { cover.fromLink }?.let { packageManager.getLaunchIntentForPackage(it) }
         val returned = launch != null && runCatching { startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
-        if (!returned) performGlobalAction(GLOBAL_ACTION_BACK)
+        if (!returned) {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            main.postDelayed({ afterBack(cover) }, BACK_CHECK_MS)
+        }
         main.postDelayed({ scheduleEval() }, 350)
     }
 
+    /**
+     * Back normally closes the video and lands where it was opened from (the chat). If the same cover is
+     * still up, Back had nothing to close: the screen was a feed, where another Back would leave the app.
+     * Take the way off the feed instead (TikTok's Inbox).
+     */
+    private fun afterBack(cover: Cover) {
+        val still = lastDecision.takeIf { !it.held }?.cover ?: return
+        if (still.app != cover.app || still.reason != cover.reason) return
+        val rules = lastRules?.takeIf { it.app == cover.app } ?: return
+        val target = rules.safeTarget ?: return
+        val fg = foreground ?: return
+        val root = findRoot(fg) ?: return
+        val (w, h) = screenSize()
+        val ok = clickNav(rules, reader.read(root, fg, w, h, rules.tabWords), target)
+        Log.i(TAG, "back left ${cover.app} covered; ${rules.navTarget(target)?.label ?: target}: ${if (ok) "clicked" else "not found"}")
+        if (ok) main.postDelayed({ scheduleEval() }, 350)
+    }
+
     override fun onLeave(cover: Cover) {
-        if (cover.reason == CoverReason.PAUSE) store.mutateToday { it.copy(pausesLeft = it.pausesLeft + 1) }
+        if (!tapTaken()) return
+        if (cover.reason == CoverReason.PAUSE) {
+            // "Not now" on a pause turns away from that one screen, not the whole app.
+            store.mutateToday { it.copy(pausesLeft = it.pausesLeft + 1) }
+            val away = cover.navTargets.firstOrNull { it.id != cover.surface }?.id
+            if (away != null) {
+                navTo(away)
+            } else {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                main.postDelayed({ scheduleEval() }, 350)
+            }
+            return
+        }
         overlays.hideCover()
         media.release()
         performGlobalAction(GLOBAL_ACTION_HOME)
+    }
+
+    override fun onWaitStarted(cover: Cover) {
+        waitStarts[cover.app] = System.currentTimeMillis()
     }
 
     override fun onUnlock(cover: Cover, videos: Boolean) {
@@ -447,9 +544,28 @@ class QuietService : AccessibilityService(), CoverActions {
             else -> engine.unlock(cover.app, s.unlockMinutes, now)
         }
         store.mutateToday(now) { it.copy(unlocks = it.unlocks + 1) }
+        skippedWaits.remove(cover.app)
+        waitStarts.remove(cover.app)
         store.addLog(cover.appName, if (videos) "Unlocked ${plural(s.unlockVideos, "more video")}" else "Unlocked for ${s.unlockMinutes} min")
         overlays.hideCover()
         media.release()
+        scheduleEval()
+    }
+
+    override fun onSkipWaitWithAd(cover: Cover) {
+        val back = foreground ?: cover.app.takeIf { it.contains('.') } ?: ""
+        SkipWaitActivity.starting()
+        overlays.hideCover()
+        media.release()
+        runCatching {
+            startActivity(SkipWaitActivity.intent(this, cover.app, cover.appName, back).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure { Log.w(TAG, "couldn't open the skip-wait screen", it) }
+    }
+
+    /** One ad was watched for [app]: its next block screen goes straight to the unlock choices. */
+    fun skipWait(app: String) {
+        skippedWaits[app] = System.currentTimeMillis() + SKIPPED_WAIT_KEEP_MS
+        waitStarts.remove(app)
         scheduleEval()
     }
 
@@ -468,6 +584,7 @@ class QuietService : AccessibilityService(), CoverActions {
     fun relock(app: String) {
         engine.relock(app)
         genericUnlocks.remove(app)
+        LiveState.update { it.copy(engine = engine.snapshot()) }
         scheduleEval()
     }
 
@@ -484,6 +601,8 @@ class QuietService : AccessibilityService(), CoverActions {
         store.mutateToday(now) { it.copy(unlocks = it.unlocks + 1) }
         val name = store.rules.value.apps[app]?.displayName ?: app
         store.addLog(name, if (videos) "Unlocked ${plural(s.unlockVideos, "more video")}" else "Unlocked for ${s.unlockMinutes} min")
+        waitStarts.remove(app)
+        LiveState.update { it.copy(engine = engine.snapshot()) }
         scheduleEval()
         return true
     }
@@ -496,6 +615,13 @@ class QuietService : AccessibilityService(), CoverActions {
     fun refresh() = scheduleEval()
 
     // ---- helpers ----
+
+    /** One of Quiet's own activities (or the ad on top of one) is the active app window. Never our overlays. */
+    private fun ownScreenActive(): Boolean = runCatching {
+        windows.any { w ->
+            w.type == AccessibilityWindowInfo.TYPE_APPLICATION && w.isActive && w.root?.packageName?.toString() == packageName
+        }
+    }.getOrDefault(false)
 
     private fun currentForeground(): String? {
         val fromWindows = runCatching {
@@ -551,7 +677,31 @@ class QuietService : AccessibilityService(), CoverActions {
         return pkg in all && pkg != "com.android.settings"
     }
 
+    private fun passPrefs() = getSharedPreferences("passes", MODE_PRIVATE)
+
+    /** Unlocks survive a restart of the service, such as an app update mid-unlock. */
+    private fun restorePasses() {
+        val now = System.currentTimeMillis()
+        val saved = SavedPasses.decode(passPrefs().getString(KEY_PASSES, null)).liveAt(now)
+        engine.restorePasses(saved, now)
+        genericUnlocks.putAll(saved.generic)
+        keptPasses = saved
+    }
+
+    /** Saves the running unlocks when they've changed (a new one, one used up, a swipe off "watch N more"). */
+    private fun keepPasses() {
+        val now = System.currentTimeMillis()
+        val current = engine.savedPasses(now).copy(generic = genericUnlocks.filterValues { it > now })
+        if (current == keptPasses) return
+        keptPasses = current
+        passPrefs().edit().putString(KEY_PASSES, SavedPasses.encode(current)).apply()
+    }
+
     private fun isLocked(): Boolean = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+
+    private fun appLabel(pkg: String): String? = runCatching {
+        packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+    }.getOrNull()?.takeIf { it.isNotBlank() }
 
     private fun labelFor(pkg: String): String =
         store.rules.value.forPackage(pkg)?.displayName
@@ -610,7 +760,7 @@ class QuietService : AccessibilityService(), CoverActions {
             put("signals", JSONArray(reading.signals.sorted()))
             put("signature", reading.signature)
             put("tabBarTop", reading.tabBarTop ?: JSONObject.NULL)
-            put("keepBottom", reading.keepBottom ?: JSONObject.NULL)
+            put("atTop", reading.atTop)
             put("nodes", nodes)
         }
         runCatching { file.writeText(json.toString(1)) }
@@ -630,10 +780,15 @@ class QuietService : AccessibilityService(), CoverActions {
                 Intent.ACTION_SCREEN_OFF -> {
                     screenOn = false
                     store.flushNow()
+                    // Nothing stays muted or drawn while the phone is locked: music on the lock screen
+                    // must play. The next look after unlocking puts back whatever is still needed.
+                    overlays.hideAll()
+                    media.release()
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn = true
                     lastTick = System.currentTimeMillis()
+                    scheduleEval()
                 }
                 Intent.ACTION_USER_PRESENT -> scheduleEval()
             }
@@ -682,6 +837,13 @@ class QuietService : AccessibilityService(), CoverActions {
         private const val EVAL_THROTTLE_MS = 250L
         private const val BOUNCE_MS = 2_000L
         private const val EVAL_MIN_DELAY_MS = 40L
+        private const val HELD_RECHECK_MS = 120L
+        private const val COVER_TAP_GAP_MS = 800L
+        /** Long enough for Back to close a video and the screen under it to be read. */
+        private const val BACK_CHECK_MS = 900L
+        /** How long a wait skipped with an ad stays skipped if no unlock is picked. */
+        private const val SKIPPED_WAIT_KEEP_MS = 10 * 60_000L
+        private const val KEY_PASSES = "running"
 
         @Volatile
         var instance: QuietService? = null

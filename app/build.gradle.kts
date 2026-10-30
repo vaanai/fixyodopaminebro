@@ -9,6 +9,14 @@ fun secret(name: String): String? = (findProperty(name) as String?)?.ifBlank { n
 
 val uploadStoreFile = secret("QUIET_UPLOAD_STORE_FILE")
 
+// Google's public AdMob test IDs. They always serve test ads and are safe to tap.
+val admobTestAppId = "ca-app-pub-3940256099942544~3347511713"
+val admobTestRewardedUnit = "ca-app-pub-3940256099942544/5224354917"
+// The real IDs, for Play builds only. See docs/releasing.md.
+val releaseAdmobAppId = secret("QUIET_ADMOB_APP_ID")
+val releaseSkipWaitUnit = secret("QUIET_ADMOB_SKIP_WAIT_UNIT")
+val releaseHasRealAds = releaseAdmobAppId != null && releaseSkipWaitUnit != null
+
 android {
     namespace = "app.quiet"
     compileSdk = 36
@@ -44,12 +52,16 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
+            manifestPlaceholders["admobAppId"] = admobTestAppId
+            buildConfigField("String", "REWARDED_SKIP_WAIT_UNIT", "\"$admobTestRewardedUnit\"")
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (uploadStoreFile != null) signingConfig = signingConfigs.getByName("release")
+            manifestPlaceholders["admobAppId"] = if (releaseHasRealAds) releaseAdmobAppId!! else admobTestAppId
+            buildConfigField("String", "REWARDED_SKIP_WAIT_UNIT", "\"${if (releaseHasRealAds) releaseSkipWaitUnit else admobTestRewardedUnit}\"")
         }
     }
     compileOptions {
@@ -81,9 +93,24 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.play.services.ads)
+    implementation(libs.user.messaging.platform)
 
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)
+}
+
+if (!releaseHasRealAds) {
+    gradle.taskGraph.whenReady {
+        val packagingRelease = allTasks.any { it.name == "bundleRelease" || it.name == "assembleRelease" }
+        if (packagingRelease && uploadStoreFile != null) {
+            // A signed build is one you could upload, so never let it go out with test ads.
+            throw GradleException("Quiet: the upload key is set but the real AdMob IDs aren't. See docs/releasing.md.")
+        }
+        if (packagingRelease) {
+            logger.warn("Quiet: real AdMob IDs aren't set, so this release build shows test ads. See docs/releasing.md.")
+        }
+    }
 }
